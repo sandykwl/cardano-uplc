@@ -1,0 +1,37 @@
+cabal-version:   3.0
+name:            plutarch-uplc
+version:         1.0.0
+synopsis:        Untyped Plutus Core syntax
+description:
+  A Haskell implementation of Untyped Plutus Core, the language that every
+  Cardano smart contract compiles to. This package provides the abstract
+  syntax; evaluation, the flat binary codec and the cost model follow in
+  later releases. Semantics are those of the Plutus specification, against
+  which the implementation is validated by the official conformance suite.
+
+license:         MIT
+license-file:    LICENSE
+author:          sandykwl <lambdac.dev01@gmail.com>
+category:        Language
+extra-doc-files:
+  CHANGELOG.md
+  README.md
+
+tested-with:     GHC ==9.6.7 || ==9.8.4
+
+common lang
+  default-language:   GHC2021
+  default-extensions:
+    DerivingStrategies
+    LambdaCase
+
+  build-depends:      base >=4.18 && <4.20
+  ghc-options:
+    -Wall -Wcompat -Wredundant-constraints -Wincomplete-uni-patterns
+    -Wincomplete-record-updates -Wmissing-export-lists
+    -Wmissing-deriving-strategies -Wpartial-fields -Wunused-packages
+
+library
+  import:          lang
+  hs-source-dirs:  src
+  exposed-modules: MyLib
