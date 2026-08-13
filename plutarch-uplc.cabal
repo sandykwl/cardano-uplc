@@ -1,6 +1,6 @@
 cabal-version:   3.0
 name:            plutarch-uplc
-version:         1.0.0
+version:         0.1.0
 synopsis:        Untyped Plutus Core syntax
 description:
   A Haskell implementation of Untyped Plutus Core, the language that every
