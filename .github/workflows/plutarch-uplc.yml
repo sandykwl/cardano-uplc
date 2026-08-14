@@ -1,0 +1,63 @@
+name: plutarch-uplc
+
+# master carries the upstream Plutarch tree; sandykwl/plutarch-uplc is the
+# integration branch for this package and stands in for main here.
+"on":
+  push:
+    branches: [sandykwl/plutarch-uplc]
+    paths:
+      - plutarch-uplc/**
+      - .github/workflows/plutarch-uplc.yml
+
+defaults:
+  run:
+    working-directory: plutarch-uplc
+
+jobs:
+  # Every GHC in `tested-with`, on every Tier 1 GHC platform.
+  build:
+    name: GHC ${{ matrix.ghc }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        ghc: ["9.6.7", "9.8.4"]
+        os:
+          - ubuntu-latest     # x86_64 linux
+          - ubuntu-24.04-arm  # aarch64 linux
+          - macos-13          # x86_64 darwin
+          - macos-14          # aarch64 darwin
+          - windows-latest    # x86_64 windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: ${{ matrix.ghc }}
+          cabal-version: "3.12.1.0"
+      - run: cabal build all
+      - run: cabal test all
+
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: "9.8.4"
+          cabal-version: "3.12.1.0"
+
+      # Fails if any module reports 0%-99% (two digits or fewer).
+      - name: Haddock coverage is 100%
+        run: |
+          set -o pipefail
+          cabal haddock lib:plutarch-uplc 2>&1 | tee haddock.log
+          ! grep -E '^ *[0-9]{1,2}% ' haddock.log
+
+      # Coverage counts top-level items, so it says nothing about @since.
+      # grep -L lists files *without* a match; any output is a failure.
+      - name: Every module carries @since
+        run: '! grep -rL "@since" src --include="*.hs" | grep .'
+
+      # cabal check exits 0 while printing warnings, so assert on the output.
+      - name: Package metadata is clean
+        run: cabal check | grep -q 'No errors or warnings'
