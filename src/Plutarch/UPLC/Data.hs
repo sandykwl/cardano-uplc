@@ -12,9 +12,8 @@ import Data.ByteString (ByteString)
 {- | A datum, a redeemer, or any other structured value carried between the
 ledger and a script.
 
-The declaration order encodes nothing here, unlike in "Plutarch.UPLC.Term"
-and "Plutarch.UPLC.Builtin": 'Data' crosses the wire as CBOR, which has
-tags of its own, so the variants stand in plutus-core's order for the
+The declaration order encodes nothing: 'Data' crosses the wire as CBOR, which
+has tags of its own, so the variants stand in plutus-core's order for the
 reader arriving from there.
 
 @since 0.1.0

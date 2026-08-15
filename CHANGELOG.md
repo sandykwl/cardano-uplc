@@ -1,5 +1,14 @@
-# Revision history for plutarch-uplc
+# Changelog for `plutarch-uplc`
 
-## 0.1.0.0 -- YYYY-mm-dd
+All notable changes to this project will be documented in this file.
 
-* First version. Released on an unsuspecting world.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## Unreleased
+
+### Added
+
+- `Plutarch.UPLC.Ty`, the type a constant carries
+- `Plutarch.UPLC.Data`, the datums, redeemers and script context passed
+  between the ledger and a script
+- `Plutarch.UPLC.Constant`, literal values

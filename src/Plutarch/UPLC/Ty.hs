@@ -1,7 +1,7 @@
-{- | The types a constant can have. Untyped Plutus Core erases types everywhere else: lambdas, variables and
-applications carry none. Constants alone keep theirs, because the flat
-encoding writes a value's type before the value, and the value's bytes
-cannot be read without it.
+{- | The types a constant can have. Untyped Plutus Core erases types
+everywhere else: lambdas, variables and applications carry none. Constants
+alone keep theirs, because the flat encoding writes a value's type before
+the value, and the value's bytes cannot be read without it.
 
 @since 0.1.0
 -}
