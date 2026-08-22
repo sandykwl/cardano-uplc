@@ -3,7 +3,7 @@ context all reach a script as a 'Data' value.
 
 @since 0.1.0
 -}
-module Plutarch.UPLC.Data (
+module Cardano.UPLC.Data (
   Data (..),
 ) where
 

@@ -5,7 +5,7 @@ the value, and the value's bytes cannot be read without it.
 
 @since 0.1.0
 -}
-module Plutarch.UPLC.Ty (
+module Cardano.UPLC.Ty (
   Ty (..),
 ) where
 

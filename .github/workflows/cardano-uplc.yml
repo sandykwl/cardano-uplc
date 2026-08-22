@@ -1,4 +1,4 @@
-name: plutarch-uplc
+name: cardano-uplc
 
 "on":
   push:
@@ -44,7 +44,7 @@ jobs:
       - name: Haddock coverage is 100%
         run: |
           set -o pipefail
-          cabal haddock lib:plutarch-uplc 2>&1 | tee haddock.log
+          cabal haddock lib:cardano-uplc 2>&1 | tee haddock.log
           ! grep -E '^ *[0-9]{1,2}% ' haddock.log
 
       # Coverage counts top-level items, so it says nothing about @since.

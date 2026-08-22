@@ -1,4 +1,4 @@
-# plutarch-uplc
+# cardano-uplc
 
 Untyped Plutus Core (UPLC) in Haskell, the language every Cardano smart
 contract compiles to.
@@ -18,8 +18,8 @@ depends on nothing from `plutus-core`, so it can be used independently.
 
 ## Where it stands
 
-The library currently provides two modules: `Plutarch.UPLC.Ty`, for the type a
-constant carries, and `Plutarch.UPLC.Data`, for the datums, redeemers and
+The library currently provides two modules: `Cardano.UPLC.Ty`, for the type a
+constant carries, and `Cardano.UPLC.Data`, for the datums, redeemers and
 other structured values that pass between the ledger and a script. It depends
 on `bytestring` and nothing further, and it builds with plain `cabal` against
 Hackage, without Nix.

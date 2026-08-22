@@ -5,14 +5,14 @@ builtins aren't implemented yet.
 
 @since 0.1.0
 -}
-module Plutarch.UPLC.Constant (
+module Cardano.UPLC.Constant (
   Constant (..),
 ) where
 
 import Data.ByteString (ByteString)
 import Data.Text (Text)
-import Plutarch.UPLC.Data (Data)
-import Plutarch.UPLC.Ty (Ty)
+import Cardano.UPLC.Data (Data)
+import Cardano.UPLC.Ty (Ty)
 
 {- | A literal value appearing in a program. The list, array and pair constants
 carry their component types, since the flat encoding does not describe itself.

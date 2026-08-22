@@ -1,5 +1,5 @@
 cabal-version:   3.0
-name:            plutarch-uplc
+name:            cardano-uplc
 version:         0.1.0
 synopsis:        Untyped Plutus Core syntax
 description:
@@ -20,6 +20,10 @@ extra-doc-files:
 
 tested-with:     GHC ==9.6.7 || ==9.8.4
 
+source-repository head
+  type:     git
+  location: https://github.com/sandykwl/cardano-uplc
+
 common lang
   default-language:   GHC2021
   default-extensions:
@@ -36,9 +40,9 @@ library
   import:          lang
   hs-source-dirs:  src
   exposed-modules:
-    Plutarch.UPLC.Constant
-    Plutarch.UPLC.Data
-    Plutarch.UPLC.Ty
+    Cardano.UPLC.Constant
+    Cardano.UPLC.Data
+    Cardano.UPLC.Ty
 
   build-depends:
       , bytestring >=0.11 && <0.13
