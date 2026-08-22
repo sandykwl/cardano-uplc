@@ -1,17 +1,10 @@
 name: plutarch-uplc
 
-# master carries the upstream Plutarch tree; sandykwl/plutarch-uplc is the
-# integration branch for this package and stands in for main here.
 "on":
   push:
-    branches: [sandykwl/plutarch-uplc]
-    paths:
-      - plutarch-uplc/**
-      - .github/workflows/plutarch-uplc.yml
-
-defaults:
-  run:
-    working-directory: plutarch-uplc
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   # Every GHC in `tested-with`, on every Tier 1 GHC platform GitHub still
