@@ -1,7 +1,6 @@
-{- | Literal values. Four of the constants the specification allows are not
-included yet. Three of them are the BLS12-381 elements, which you can only
-get by evaluating a builtin. The fourth is the ledger's @Value@, whose
-builtins aren't implemented yet.
+{- | Literal values. Four the specification allows are missing: the three
+BLS12-381 elements, which only a builtin can produce, and the ledger's
+@Value@.
 
 @since 0.1.0
 -}
@@ -14,8 +13,8 @@ import Data.Text (Text)
 import Cardano.UPLC.Data (Data)
 import Cardano.UPLC.Ty (Ty)
 
-{- | A literal value appearing in a program. The list, array and pair constants
-carry their component types, since the flat encoding does not describe itself.
+{- | A literal value in a program. List, array and pair carry their component
+types, since the flat encoding does not describe itself.
 
 @since 0.1.0
 -}

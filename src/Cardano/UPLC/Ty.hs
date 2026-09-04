@@ -1,7 +1,8 @@
-{- | The types a constant can have. Untyped Plutus Core erases types
-everywhere else: lambdas, variables and applications carry none. Constants
-alone keep theirs, because the flat encoding writes a value's type before
-the value, and the value's bytes cannot be read without it.
+{- | The types a constant can have.
+
+UPLC erases types everywhere else. Constants keep theirs because the flat
+encoding writes the type before the value, and the value cannot be read
+without it.
 
 @since 0.1.0
 -}
@@ -9,10 +10,8 @@ module Cardano.UPLC.Ty (
   Ty (..),
 ) where
 
-{- | The type of a constant, which a decoder must know before it can read the
-value itself. Declared in flat tag order, and with no 'Enum' instance: A list,
-an array or a pair encodes as a sequence of tags, so a position here is not a
-tag.
+{- | In flat tag order, but with no 'Enum' instance: a list, array or pair
+encodes as a sequence of tags, so position is not the tag here.
 
 @since 0.1.0
 -}

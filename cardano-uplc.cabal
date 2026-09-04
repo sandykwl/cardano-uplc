@@ -40,8 +40,11 @@ library
   import:          lang
   hs-source-dirs:  src
   exposed-modules:
+    Cardano.UPLC.Builtin
     Cardano.UPLC.Constant
     Cardano.UPLC.Data
+    Cardano.UPLC.Name
+    Cardano.UPLC.Term
     Cardano.UPLC.Ty
 
   build-depends:
