@@ -7,7 +7,8 @@ description:
   Cardano smart contract compiles to. This package provides the abstract
   syntax; evaluation, the flat binary codec and the cost model follow in
   later releases. Semantics are those of the Plutus specification, against
-  which the implementation is validated by the official conformance suite.
+  which the implementation is to be validated by the official conformance
+  suite.
 
 license:         MIT
 license-file:    LICENSE
@@ -29,6 +30,10 @@ common lang
   default-extensions:
     DerivingStrategies
     LambdaCase
+    NoDeriveDataTypeable
+    NoMonomorphismRestriction
+    NoPostfixOperators
+    NoStarIsType
 
   build-depends:      base >=4.18 && <4.20
   ghc-options:

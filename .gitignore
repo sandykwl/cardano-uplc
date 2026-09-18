@@ -1,1 +1,7 @@
 dist-newstyle/
+
+# The quality job tees the Haddock output here to grep it for coverage, and now
+# that the package sits at the repository root that lands beside the sources.
+haddock.log
+
+.idea/

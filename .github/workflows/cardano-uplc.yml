@@ -7,22 +7,41 @@ name: cardano-uplc
     branches: [main]
 
 jobs:
-  # Every GHC in `tested-with`, on every Tier 1 GHC platform. x86_64 darwin is
-  # macos-15-intel: the macos-13 image has been retired, and jobs asking for it
-  # queue until the 24-hour timeout kills them.
+  # The GHC versions are read from `tested-with`, so they are declared once, in
+  # the cabal file. The runners are listed here: every Tier 1 GHC platform.
+  # x86_64 darwin is macos-15-intel: the macos-13 image has been retired, and
+  # jobs asking for it queue until the 24-hour timeout kills them.
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      newest: ${{ steps.newest.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        uses: kleidukos/get-tested@v0.1.10.0
+        with:
+          cabal-file: cardano-uplc.cabal
+          ubuntu-version: "latest, 24.04-arm"
+          macos-version: "15-intel, 14"
+          windows-version: "latest"
+          version: 0.1.10.0
+
+      # The quality gates need one GHC, not every one: the newest, on Linux.
+      - id: newest
+        uses: kleidukos/get-tested@v0.1.10.0
+        with:
+          cabal-file: cardano-uplc.cabal
+          ubuntu-version: "latest"
+          newest: true
+          version: 0.1.10.0
+
   build:
     name: GHC ${{ matrix.ghc }} on ${{ matrix.os }}
+    needs: generate-matrix
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        ghc: ["9.6.7", "9.8.4"]
-        os:
-          - ubuntu-latest     # x86_64 linux
-          - ubuntu-24.04-arm  # aarch64 linux
-          - macos-15-intel    # x86_64 darwin
-          - macos-14          # aarch64 darwin
-          - windows-latest    # x86_64 windows
+      matrix: ${{ fromJSON(needs.generate-matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - uses: haskell-actions/setup@v2
@@ -33,12 +52,13 @@ jobs:
       - run: cabal test all
 
   quality:
+    needs: generate-matrix
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: haskell-actions/setup@v2
         with:
-          ghc-version: "9.8.4"
+          ghc-version: ${{ fromJSON(needs.generate-matrix.outputs.newest).include[0].ghc }}
           cabal-version: "3.12.1.0"
 
       # Fails if any module reports 0%-99% (two digits or fewer).
