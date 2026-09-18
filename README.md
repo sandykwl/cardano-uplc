@@ -18,15 +18,21 @@ depends on nothing from `plutus-core`, so it can be used independently.
 
 ## Where it stands
 
-The library currently provides two modules: `Cardano.UPLC.Ty`, for the type a
-constant carries, and `Cardano.UPLC.Data`, for the datums, redeemers and
-other structured values that pass between the ledger and a script. It depends
-on `bytestring` and nothing further, and it builds with plain `cabal` against
-Hackage, without Nix.
+The library provides the syntax, under `Cardano.UPLC`: the term and program
+types, binders, builtins, constants and their types, and `Data`. It depends
+on `bytestring` and `text` and nothing further, and it builds with plain
+`cabal` against Hackage, without Nix.
 
-The flat binary codec, `Data` to CBOR and back, the CEK machine, cost
-metering, the builtins and version gating follow in later releases, roughly in
-that order, since each one needs the ones before it.
+`Cardano.UPLC.Flat` is a first version of the flat codec, in both directions,
+and is still under review. Flat is the form a script takes on chain, and the
+format is described in the module's Haddock. A `data` constant crosses the
+wire as CBOR, and the CBOR codec is the next release; until then the codec
+refuses one with a named error in each direction. The ledger's `value` type
+is not handled yet either.
+
+The CEK machine, cost metering, the builtins and version gating follow in
+later releases, roughly in that order, since each one needs the ones before
+it.
 
 ## Correctness
 
