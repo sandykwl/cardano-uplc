@@ -10,10 +10,11 @@ release doesn't support yet.
 module Main (main) where
 
 import Data.ByteString qualified as BS
+import Data.Text qualified as T
 import Test.Tasty (TestTree, adjustOption, defaultMain, testGroup)
 import Test.Tasty.HUnit (assertFailure, testCase, (@?=))
 import Test.Tasty.QuickCheck (QuickCheckTests, counterexample, testProperty, (===))
-import Cardano.UPLC.Builtin (DefaultFun (AddInteger))
+import Cardano.UPLC.Builtin (DefaultFun (..))
 import Cardano.UPLC.Constant (Constant (..))
 import Cardano.UPLC.Data qualified as Data
 import Cardano.UPLC.Flat (
@@ -25,12 +26,27 @@ import Cardano.UPLC.Flat (
 import Cardano.UPLC.Name (DeBruijn (DeBruijn))
 import Cardano.UPLC.Term (Program (Program), Term (..), Version (Version))
 import Cardano.UPLC.Test.Gen (Encodable (Encodable), Nested (Nested))
-import Cardano.UPLC.Ty (Ty (TyBLS12_381_G1_Element))
+import Cardano.UPLC.Ty (Ty (..))
 
 main :: IO ()
 main =
   defaultMain . adjustOption (max (1_000 :: QuickCheckTests)) $
-    testGroup "Flat" [roundTrips, golden, negatives, padding, gaps]
+    testGroup "Flat" [tagTables, roundTrips, golden, goldenShapes, goldenChunks, negatives, padding, gaps]
+
+-- Position in the declaration is the wire tag, so a dropped or reordered
+-- line would renumber everything after it and no round trip would notice.
+-- The builtin tags are ones the conformance corpus pins by its bytes; the
+-- term tags come from the specification's table.
+tagTables :: TestTree
+tagTables =
+  testGroup
+    "Tag tables"
+    [ testCase "the builtin table ends at tag 93" $
+        fromEnum (maxBound :: DefaultFun) @?= 93
+    , testCase "builtin tags match the corpus" $
+        map fromEnum [Sha2_256, SerialiseData, Bls12_381_G1_uncompress, Bls12_381_G1_hashToGroup, Keccak_256, IndexArray]
+          @?= [18, 51, 59, 60, 71, 91]
+    ]
 
 roundTrips :: TestTree
 roundTrips =
@@ -73,6 +89,69 @@ golden =
           (Constant (CInteger 3))
     exampleBytes =
       BS.pack [0x01, 0x01, 0x00, 0x33, 0x22, 0x33, 0x70, 0x00, 0x04, 0x00, 0x29, 0x00, 0x22, 0x40, 0x0d]
+
+{- (program 1.1.0
+     (case (constr 1 (delay (force (error))) (con bool True))
+           (con unit ())
+           (con (list (pair bytestring string)) [(#ab, "a")])))
+
+   Worked out by hand from the specification's rules, to cover the term
+   and constant shapes the worked example leaves out: delay, force, error,
+   constr, case, bool, unit, bytestring, string, list and pair. -}
+goldenShapes :: TestTree
+goldenShapes =
+  testGroup
+    "Golden, the other shapes"
+    [ testCase "encodes to the hand-computed bytes" $
+        encodeProgram shapes @?= Right shapesBytes
+    , testCase "the hand-computed bytes decode to it" $
+        decodeProgram shapesBytes @?= Right shapes
+    ]
+  where
+    shapes =
+      Program (Version 1 1 0) $
+        Case
+          (Constr 1 [Delay (Force Error), Constant (CBool True)])
+          [ Constant CUnit
+          , Constant
+              ( CList
+                  (TyPair TyByteString TyString)
+                  [CPair TyByteString TyString (CByteString (BS.pack [0xab])) (CString (T.pack "a"))]
+              )
+          ]
+    shapesBytes =
+      BS.pack
+        [ 0x01, 0x01, 0x00 -- version
+        , 0x98 -- case, constr
+        , 0x01 -- constr tag 1
+        , 0x8a, 0xb5, 0x28, 0xa9, 0x35 -- fields: delay force error, bool true; branch 1: unit; branch 2 begins
+        , 0x2f, 0x5b, 0xde, 0xd1, 0x93 -- type tags [7,5,7,7,6,1,2]; list cons; padding
+        , 0x01, 0xab, 0x00 -- bytestring #ab
+        , 0x01, 0x01, 0x61, 0x00 -- padding, string "a"
+        , 0x01 -- list end, branches end, final padding
+        ]
+
+-- A 300-byte string: the writer must split it 255 then 45, because that is
+-- the split the reference writes and the script hash depends on it. The
+-- generators never reach 255 bytes, so this is pinned by hand.
+goldenChunks :: TestTree
+goldenChunks =
+  testGroup
+    "Golden, chunking"
+    [ testCase "a 300-byte string is written as 255 and 45" $
+        encodeProgram program @?= Right bytes
+    , testCase "and reads back" $
+        decodeProgram bytes @?= Right program
+    ]
+  where
+    program = Program (Version 1 1 0) (Constant (CByteString (BS.replicate 300 0xab)))
+    bytes =
+      BS.concat
+        [ BS.pack [0x01, 0x01, 0x00, 0x48, 0x81] -- version; constant, type [1], padding
+        , BS.pack [0xff], BS.replicate 255 0xab
+        , BS.pack [0x2d], BS.replicate 45 0xab
+        , BS.pack [0x00, 0x01] -- end of chunks, final padding
+        ]
 
 -- The conformance suite's negative cases, byte for byte.
 negatives :: TestTree
