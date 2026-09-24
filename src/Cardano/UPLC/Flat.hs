@@ -66,7 +66,7 @@ then a 1, so it is always at least one bit long.
 * @constr@ and @case@ in programs older than version 1.1.0
 * builtin tags beyond the ones this release knows
 * type tags that don't form a type
-* padding that isn't a run of 0s ending in a 1
+* padding whose closing 1 doesn't end a byte
 * anything after the final padding
 
 It also turns away values of the BLS12-381 types, because flat never

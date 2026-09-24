@@ -290,16 +290,28 @@ getWord64 = do
 getInteger :: Get Integer
 getInteger = unzigzag <$> getNatural
 
-{- | Read padding: 0s and then a single 1 that ends the byte. Anything else
-is 'BadFiller'.
+{- | Read padding: 0s up to a 1 that ends a byte. Anything else is
+'BadFiller'.
+
+The specification's padding never runs past the next byte boundary, but
+both reference implementations read 0s until the first 1 and only then
+require byte alignment, so whole zero bytes of extra padding are accepted
+there. This reader accepts the same, because the reference is what the
+network runs.
 
 @since 0.1.0
 -}
 getFiller :: Get ()
 getFiller = do
+  start <- getOffset
+  skipZeros
   off <- getOffset
-  v <- getBits (8 - (off `mod` 8))
-  if v == 1 then pure () else getFail (BadFiller off)
+  if off `mod` 8 == 0 then pure () else getFail (BadFiller start)
+  where
+    skipZeros :: Get ()
+    skipZeros = do
+      b <- getBit
+      if b then pure () else skipZeros
 
 {- | Read a byte string: padding, then length-prefixed chunks up to a zero
 byte. Any chunking is accepted, so a string that wasn't split the usual way

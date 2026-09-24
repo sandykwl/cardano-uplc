@@ -68,8 +68,8 @@ data DecodeError
     --
     -- @since 0.1.0
     InvalidUtf8 !Int
-  | -- | Padding that isn't a run of 0s ending in a single 1 at the byte
-    -- boundary.
+  | -- | Padding whose closing 1 doesn't end a byte. Extra whole bytes of
+    -- 0s before it are fine, as they are in the reference.
     --
     -- @since 0.1.0
     BadFiller !Int

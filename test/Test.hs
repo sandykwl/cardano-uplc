@@ -30,7 +30,7 @@ import Cardano.UPLC.Ty (Ty (TyBLS12_381_G1_Element))
 main :: IO ()
 main =
   defaultMain . adjustOption (max (1_000 :: QuickCheckTests)) $
-    testGroup "Flat" [roundTrips, golden, negatives, gaps]
+    testGroup "Flat" [roundTrips, golden, negatives, padding, gaps]
 
 roundTrips :: TestTree
 roundTrips =
@@ -101,6 +101,20 @@ negatives =
       testCase "a free variable decodes" $
         decodeProgram (BS.pack [0x01, 0x00, 0x00, 0x00, 0x11])
           @?= Right (Program (Version 1 0 0) (Var (DeBruijn 1)))
+    ]
+
+-- Both references read padding as 0s up to the first 1 and then require
+-- byte alignment, so extra zero bytes pass and a 1 mid-byte does not.
+padding :: TestTree
+padding =
+  testGroup
+    "Padding"
+    [ testCase "whole extra bytes of 0s are accepted" $
+        decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x60, 0x00, 0x01])
+          @?= Right (Program (Version 1 1 0) Error)
+    , testCase "a closing 1 that does not end a byte is refused" $
+        decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x62])
+          @?= Left (BadFiller 28)
     ]
 
 -- The edges: a BLS type with no value, which works, and a data constant,
