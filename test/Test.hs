@@ -31,7 +31,7 @@ import Cardano.UPLC.Ty (Ty (..))
 main :: IO ()
 main =
   defaultMain . adjustOption (max (1_000 :: QuickCheckTests)) $
-    testGroup "Flat" [tagTables, roundTrips, golden, goldenShapes, goldenChunks, negatives, padding, gaps]
+    testGroup "Flat" [tagTables, roundTrips, golden, goldenShapes, goldenChunks, negatives, padding, readingRules, gaps]
 
 -- Position in the declaration is the wire tag, so a dropped or reordered
 -- line would renumber everything after it and no round trip would notice.
@@ -194,6 +194,42 @@ padding =
     , testCase "a closing 1 that does not end a byte is refused" $
         decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x62])
           @?= Left (BadFiller 28)
+    ]
+
+-- How numbers written with extra zero groups are read, matched to
+-- plutus-core's decoders at 1.70.0.0. Indices and constr tags take at most
+-- ten groups, as its Word64 reader does. Versions and integer constants are
+-- unbounded naturals there, so any padding is accepted.
+readingRules :: TestTree
+readingRules =
+  testGroup
+    "Reading rules"
+    [ testCase "an index padded to two groups is read" $
+        decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x08, 0x10, 0x01])
+          @?= Right (Program (Version 1 1 0) (Var (DeBruijn 1)))
+    , testCase "an index padded to ten groups is read" $
+        decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x08, 0x18, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x00, 0x01])
+          @?= Right (Program (Version 1 1 0) (Var (DeBruijn 1)))
+    , testCase "an index padded to eleven groups is refused" $
+        decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x08, 0x18, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x00, 0x01])
+          @?= Left (WordOverflow 28)
+    , testCase "a constr tag padded to two groups is read" $
+        decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x88, 0x10, 0x01])
+          @?= Right (Program (Version 1 1 0) (Constr 1 []))
+    , testCase "a constr tag padded to eleven groups is refused" $
+        decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x88, 0x18, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x00, 0x01])
+          @?= Left (WordOverflow 28)
+    , testCase "a version padded to eleven groups is read" $
+        decodeProgram (BS.pack [0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00, 0x01, 0x00, 0x61])
+          @?= Right (Program (Version 1 1 0) Error)
+    , -- plutus-core's flat layer accepts this and its ledger refuses it, as
+      -- it refuses every version but 1.0.0 and 1.1.0.
+      testCase "a version past 2^64 is refused" $
+        decodeProgram (BS.pack [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02, 0x01, 0x00, 0x61])
+          @?= Left (WordOverflow 0)
+    , testCase "a padded integer constant is read" $
+        decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x48, 0x21, 0x20, 0x20, 0x00, 0x01])
+          @?= Right (Program (Version 1 1 0) (Constant (CInteger 2)))
     ]
 
 -- The edges: a BLS type with no value, which works, and a data constant,

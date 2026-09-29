@@ -29,6 +29,7 @@ module Cardano.UPLC.Flat.Bits (
   getBit,
   getBits,
   getWord64,
+  getNaturalWord64,
   getInteger,
   getFiller,
   getByteString,
@@ -269,14 +270,42 @@ getNatural = go 0 0
       let acc' = acc .|. shiftL (fromIntegral (w .&. 0x7f) :: Natural) shift
       if testBit w 7 then go (shift + 7) acc' else pure acc'
 
-{- | Read a natural that has to fit a 'Word64'. If it doesn't, that is
-'WordOverflow'. Cutting it down instead would quietly decode a different
+{- | Read a natural that has to fit a 'Word64', as a de Bruijn index or a
+@constr@ tag is. It may take at most ten groups, and the tenth may only be
+0 or 1; anything else is 'WordOverflow'. That is the reference's own rule,
+so a small number padded with extra groups is refused here as it is there.
+Cutting a large value down instead would quietly decode a different
 program.
 
 @since 0.1.0
 -}
 getWord64 :: Get Word64
 getWord64 = do
+  start <- getOffset
+  let go :: Int -> Word64 -> Get Word64
+      go shift acc = do
+        w <- getBits 8
+        let payload = fromIntegral (w .&. 0x7f) :: Word64
+            acc' = acc .|. shiftL payload shift
+        if shift == 63
+          then
+            if w <= 1
+              then pure acc'
+              else getFail (WordOverflow start)
+          else
+            if testBit w 7
+              then go (shift + 7) acc'
+              else pure acc'
+  go 0 0
+
+{- | Read a natural of any length and refuse one past 'Word64'. Version
+numbers are read this way: the reference reads them as unbounded naturals,
+and a version too big for a 'Word64' is not one the ledger accepts.
+
+@since 0.1.0
+-}
+getNaturalWord64 :: Get Word64
+getNaturalWord64 = do
   start <- getOffset
   n <- getNatural
   if n > fromIntegral (maxBound :: Word64)

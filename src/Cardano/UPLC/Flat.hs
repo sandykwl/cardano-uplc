@@ -107,6 +107,7 @@ import Cardano.UPLC.Flat.Bits (
   getListWith,
   getOffset,
   getText,
+  getNaturalWord64,
   getWord64,
   pushBit,
   pushBits,
@@ -208,7 +209,7 @@ removed. Nothing may follow the program.
 -}
 decodeProgram :: ByteString -> Either DecodeError (Program DeBruijn)
 decodeProgram = runGet $ do
-  version <- Version <$> getWord64 <*> getWord64 <*> getWord64
+  version <- Version <$> getNaturalWord64 <*> getNaturalWord64 <*> getNaturalWord64
   term <- getTerm version
   getFiller
   getEnd
