@@ -227,6 +227,22 @@ readingRules =
       testCase "a version past 2^64 is refused" $
         decodeProgram (BS.pack [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02, 0x01, 0x00, 0x61])
           @?= Left (WordOverflow 0)
+    , -- "abc" split 1 + 2: the reader takes any chunking, as the
+      -- reference's does; only the writer is held to 255-byte chunks.
+      testCase "a non-canonically chunked byte string is read" $
+        decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x48, 0x81, 0x01, 0x61, 0x02, 0x62, 0x63, 0x00, 0x01])
+          @?= Right (Program (Version 1 1 0) (Constant (CByteString (BS.pack [0x61, 0x62, 0x63]))))
+    , testCase "a string that is not UTF-8 is refused" $
+        decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x49, 0x01, 0x01, 0xff, 0x00, 0x01])
+          @?= Left (InvalidUtf8 34)
+    , testCase "a byte after the final padding is refused" $
+        decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x61, 0x00])
+          @?= Left (TrailingInput 32)
+    , -- Index zero points at no binder; like the reference, the decoder
+      -- leaves that to scope checking.
+      testCase "index zero is read" $
+        decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x00, 0x01])
+          @?= Right (Program (Version 1 1 0) (Var (DeBruijn 0)))
     , testCase "a padded integer constant is read" $
         decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x48, 0x21, 0x20, 0x20, 0x00, 0x01])
           @?= Right (Program (Version 1 1 0) (Constant (CInteger 2)))
