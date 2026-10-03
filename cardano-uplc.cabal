@@ -1,14 +1,14 @@
 cabal-version:   3.0
 name:            cardano-uplc
 version:         0.1.0
-synopsis:        Untyped Plutus Core syntax
+synopsis:        Untyped Plutus Core syntax and binary codec
 description:
   A Haskell implementation of Untyped Plutus Core, the language that every
   Cardano smart contract compiles to. This package provides the abstract
-  syntax; evaluation, the flat binary codec and the cost model follow in
-  later releases. Semantics are those of the Plutus specification, against
-  which the implementation is to be validated by the official conformance
-  suite.
+  syntax and the flat binary codec scripts are stored in on chain;
+  evaluation and the cost model follow in later releases. Semantics are
+  those of the Plutus specification, against which the implementation is to
+  be validated by the official conformance suite.
 
 license:         MIT
 license-file:    LICENSE
@@ -48,10 +48,32 @@ library
     Cardano.UPLC.Builtin
     Cardano.UPLC.Constant
     Cardano.UPLC.Data
+    Cardano.UPLC.Flat
     Cardano.UPLC.Name
     Cardano.UPLC.Term
     Cardano.UPLC.Ty
 
+  -- The codec's bit layer and error types. Cardano.UPLC.Flat re-exports the
+  -- errors, and nothing outside the package needs the bit layer.
+  other-modules:
+    Cardano.UPLC.Flat.Bits
+    Cardano.UPLC.Flat.Error
+
   build-depends:
       , bytestring >=0.11 && <0.13
       , text        >=2.0  && <2.2
+
+test-suite tests
+  import:         lang
+  type:           exitcode-stdio-1.0
+  main-is:        Test.hs
+  hs-source-dirs: test
+  other-modules:  Cardano.UPLC.Test.Gen
+  build-depends:
+    , bytestring
+    , cardano-uplc
+    , QuickCheck        >=2.14 && <2.16
+    , tasty             >=1.5  && <1.6
+    , tasty-hunit       >=0.10 && <0.11
+    , tasty-quickcheck  >=0.10 && <0.12
+    , text

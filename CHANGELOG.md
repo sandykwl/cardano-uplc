@@ -12,3 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `Cardano.UPLC.Data`, the datums, redeemers and script context passed
   between the ledger and a script
 - `Cardano.UPLC.Constant`, literal values
+- `Cardano.UPLC.Name`, the two binder representations
+- `Cardano.UPLC.Builtin`, the builtin functions in flat tag order
+- `Cardano.UPLC.Term`, terms, versions and programs
+- `Cardano.UPLC.Flat`, the flat codec
