@@ -31,7 +31,7 @@ import Cardano.UPLC.Ty (Ty (..))
 main :: IO ()
 main =
   defaultMain . adjustOption (max (1_000 :: QuickCheckTests)) $
-    testGroup "Flat" [tagTables, roundTrips, golden, goldenShapes, goldenChunks, negatives, padding, readingRules, gaps]
+    testGroup "Flat" [tagTables, roundTrips, golden, goldenShapes, goldenChunks, goldenSpec, negatives, padding, readingRules, gaps]
 
 -- Position in the declaration is the wire tag, so a dropped or reordered
 -- line would renumber everything after it and no round trip would notice.
@@ -152,6 +152,34 @@ goldenChunks =
         , BS.pack [0xff], BS.replicate 255 0xab
         , BS.pack [0x2d], BS.replicate 45 0xab
         , BS.pack [0x00, 0x01] -- end of chunks, final padding
+        ]
+
+{- (program 5.0.2
+     [ [ (builtin indexByteString) (con bytestring #1a5f783625ee8c) ]
+       (con integer 54321) ])
+
+   The specification's own worked example, Appendix C.5, with the bytes it
+   prints. Version 5.0.2 is not one the ledger accepts, but the format reads
+   any version. -}
+goldenSpec :: TestTree
+goldenSpec =
+  testGroup
+    "Golden, the specification's example"
+    [ testCase "encodes to the bytes the specification prints" $
+        encodeProgram program @?= Right bytes
+    , testCase "and those bytes decode to it" $
+        decodeProgram bytes @?= Right program
+    ]
+  where
+    program =
+      Program (Version 5 0 2) $
+        Apply
+          (Apply (Builtin IndexByteString) (Constant (CByteString (BS.pack [0x1a, 0x5f, 0x78, 0x36, 0x25, 0xee, 0x8c]))))
+          (Constant (CInteger 54321))
+    bytes =
+      BS.pack
+        [ 0x05, 0x00, 0x02, 0x33, 0x71, 0xc9, 0x11, 0x07, 0x1a, 0x5f, 0x78, 0x36, 0x25, 0xee
+        , 0x8c, 0x00, 0x48, 0x38, 0xb4, 0x01, 0x81
         ]
 
 -- amaru-uplc's negative conformance cases, byte for byte.
