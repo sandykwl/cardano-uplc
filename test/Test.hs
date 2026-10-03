@@ -1,11 +1,11 @@
 {- Tests for the flat codec.
 
 Round trips check that the encoder and decoder agree with each other. The
-golden test checks that they agree with the reference, using the worked
-example from the specification. The negative cases are copied byte for byte
-from the conformance suite, and each checks the exact error and where it
-happened, not just that decoding failed. The last group pins down what this
-release doesn't support yet.
+golden test checks that they agree with the reference, on a small program
+whose bytes plutus-core reads and writes back unchanged. The negative cases
+are copied byte for byte from amaru-uplc's conformance suite, and each checks
+the exact error and where it happened, not just that decoding failed. The
+last group pins down what this release doesn't support yet.
 -}
 module Main (main) where
 
@@ -66,7 +66,8 @@ roundTrips =
      [ [ (lam x (lam y [ [ (builtin addInteger) x ] y ])) (con integer 2) ]
        (con integer 3) ])
 
-   The specification's worked example, with the fifteen bytes it gives. -}
+   Its fifteen bytes were worked out by hand from the specification, and
+   plutus-core decodes and re-encodes them unchanged. -}
 golden :: TestTree
 golden =
   testGroup
@@ -153,7 +154,7 @@ goldenChunks =
         , BS.pack [0x00, 0x01] -- end of chunks, final padding
         ]
 
--- The conformance suite's negative cases, byte for byte.
+-- amaru-uplc's negative conformance cases, byte for byte.
 negatives :: TestTree
 negatives =
   testGroup
