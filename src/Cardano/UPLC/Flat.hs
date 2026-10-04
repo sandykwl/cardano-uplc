@@ -126,30 +126,29 @@ import Cardano.UPLC.Term (Program (Program), Term (..), Version (Version))
 import Cardano.UPLC.Ty (Ty (..))
 
 {- | Encode a program. It only fails on a @data@ constant; see
-'EncodeError'.
+'EncodeError'. Annotations are not written: flat has no place for them.
 
 @since 0.1.0
 -}
-encodeProgram :: Program DeBruijn -> Either EncodeError ByteString
-encodeProgram (Program (Version major minor patch) term) = do
+encodeProgram :: Program DeBruijn ann -> Either EncodeError ByteString
+encodeProgram (Program _ (Version major minor patch) term) = do
   body <- putTerm term (pushWord64 patch . pushWord64 minor . pushWord64 major $ emptyOut)
   pure (runOut (pushFiller body))
 
--- Each tag is the constructor's position in the declaration. A lambda's
--- parameter writes nothing, because a variable finds its binder by
--- counting lambdas outward.
-putTerm :: Term DeBruijn -> Out -> Either EncodeError Out
+-- The tags are the format's, written out. A lambda's parameter writes
+-- nothing, because a variable finds its binder by counting lambdas outward.
+putTerm :: Term DeBruijn ann -> Out -> Either EncodeError Out
 putTerm t out = case t of
-  Var (DeBruijn i) -> Right (pushWord64 i (tag 0))
-  Delay body -> putTerm body (tag 1)
-  LamAbs _ body -> putTerm body (tag 2)
-  Apply f x -> putTerm f (tag 3) >>= putTerm x
-  Constant c -> putConstant c (tag 4)
-  Force body -> putTerm body (tag 5)
-  Error -> Right (tag 6)
-  Builtin f -> Right (pushBits 7 (fromIntegral (fromEnum f)) (tag 7))
-  Constr w fields -> putListWith putTerm fields (pushWord64 w (tag 8))
-  Case scrutinee branches -> putTerm scrutinee (tag 9) >>= putListWith putTerm branches
+  Var _ (DeBruijn i) -> Right (pushWord64 i (tag 0))
+  Delay _ body -> putTerm body (tag 1)
+  LamAbs _ _ body -> putTerm body (tag 2)
+  Apply _ f x -> putTerm f (tag 3) >>= putTerm x
+  Constant _ c -> putConstant c (tag 4)
+  Force _ body -> putTerm body (tag 5)
+  Error _ -> Right (tag 6)
+  Builtin _ f -> Right (pushBits 7 (fromIntegral (fromEnum f)) (tag 7))
+  Constr _ w fields -> putListWith putTerm fields (pushWord64 w (tag 8))
+  Case _ scrutinee branches -> putTerm scrutinee (tag 9) >>= putListWith putTerm branches
   where
     tag :: Word8 -> Out
     tag n = pushBits 4 n out
@@ -203,35 +202,36 @@ putListWith :: (a -> Out -> Either EncodeError Out) -> [a] -> Out -> Either Enco
 putListWith f xs out = pushBit False <$> foldM (\o x -> f x (pushBit True o)) out xs
 
 {- | Decode a program from flat bytes, with the CBOR wrapper already
-removed. Nothing may follow the program.
+removed. Nothing may follow the program. The bytes carry no annotations, so
+every one is @()@.
 
 @since 0.1.0
 -}
-decodeProgram :: ByteString -> Either DecodeError (Program DeBruijn)
+decodeProgram :: ByteString -> Either DecodeError (Program DeBruijn ())
 decodeProgram = runGet $ do
   version <- Version <$> getNaturalWord64 <*> getNaturalWord64 <*> getNaturalWord64
   term <- getTerm version
   getFiller
   getEnd
-  pure (Program version term)
+  pure (Program () version term)
 
-getTerm :: Version -> Get (Term DeBruijn)
+getTerm :: Version -> Get (Term DeBruijn ())
 getTerm version = go
   where
     go = do
       start <- getOffset
       tag <- getBits 4
       case tag of
-        0 -> Var . DeBruijn <$> getWord64
-        1 -> Delay <$> go
-        2 -> LamAbs (DeBruijn 0) <$> go
-        3 -> Apply <$> go <*> go
-        4 -> Constant <$> getConstant
-        5 -> Force <$> go
-        6 -> pure Error
-        7 -> Builtin <$> getBuiltin
-        8 -> gate tag start *> (Constr <$> getWord64 <*> getListWith go)
-        9 -> gate tag start *> (Case <$> go <*> getListWith go)
+        0 -> Var () . DeBruijn <$> getWord64
+        1 -> Delay () <$> go
+        2 -> LamAbs () (DeBruijn 0) <$> go
+        3 -> Apply () <$> go <*> go
+        4 -> Constant () <$> getConstant
+        5 -> Force () <$> go
+        6 -> pure (Error ())
+        7 -> Builtin () <$> getBuiltin
+        8 -> gate tag start *> (Constr () <$> getWord64 <*> getListWith go)
+        9 -> gate tag start *> (Case () <$> go <*> getListWith go)
         _ -> getFail (BadTermTag tag start)
 
     gate :: Word8 -> Int -> Get ()

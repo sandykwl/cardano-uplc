@@ -14,5 +14,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `Cardano.UPLC.Constant`, literal values
 - `Cardano.UPLC.Name`, the two binder representations
 - `Cardano.UPLC.Builtin`, the builtin functions in flat tag order
-- `Cardano.UPLC.Term`, terms, versions and programs
+- `Cardano.UPLC.Term`, terms, versions and programs, each carrying an
+  annotation for tools; the codec writes none and decodes `()`
 - `Cardano.UPLC.Flat`, the flat codec

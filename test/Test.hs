@@ -10,6 +10,7 @@ last group pins down what this release doesn't support yet.
 module Main (main) where
 
 import Data.ByteString qualified as BS
+import Data.Foldable (toList)
 import Data.Text qualified as T
 import Test.Tasty (TestTree, adjustOption, defaultMain, testGroup)
 import Test.Tasty.HUnit (assertFailure, testCase, (@?=))
@@ -31,7 +32,7 @@ import Cardano.UPLC.Ty (Ty (..))
 main :: IO ()
 main =
   defaultMain . adjustOption (max (1_000 :: QuickCheckTests)) $
-    testGroup "Flat" [tagTables, roundTrips, golden, goldenShapes, goldenChunks, goldenSpec, negatives, padding, readingRules, gaps]
+    testGroup "Flat" [tagTables, roundTrips, annotations, golden, goldenShapes, goldenChunks, goldenSpec, negatives, padding, readingRules, gaps]
 
 -- Position in the declaration is the wire tag, so a dropped or reordered
 -- line would renumber everything after it and no round trip would notice.
@@ -55,12 +56,24 @@ roundTrips =
     [ testProperty "programs" $
         \(Encodable p) -> roundTrip p
     , testProperty "constants at nested types" $
-        \(Nested c) -> roundTrip (Program (Version 1 1 0) (Constant c))
+        \(Nested c) -> roundTrip (Program () (Version 1 1 0) (Constant () c))
     ]
   where
     roundTrip p = case encodeProgram p of
       Left e -> counterexample (show e) False
       Right bytes -> decodeProgram bytes === Right p
+
+annotations :: TestTree
+annotations =
+  testGroup
+    "Annotations"
+    [ testProperty "the encoder ignores them" $
+        \(Encodable p) -> encodeProgram (fmap (const (7 :: Int)) p) === encodeProgram p
+    , -- The derived instances reach the last parameter, so a fold collects
+      -- annotations and never the binder.
+      testCase "a fold collects annotations, not binders" $
+        toList (LamAbs 'a' (DeBruijn 0) (Var 'b' (DeBruijn 1))) @?= "ab"
+    ]
 
 {- (program 1.1.0
      [ [ (lam x (lam y [ [ (builtin addInteger) x ] y ])) (con integer 2) ]
@@ -79,15 +92,15 @@ golden =
     ]
   where
     example =
-      Program (Version 1 1 0) $
-        Apply
-          ( Apply
-              ( LamAbs (DeBruijn 0) . LamAbs (DeBruijn 0) $
-                  Apply (Apply (Builtin AddInteger) (Var (DeBruijn 2))) (Var (DeBruijn 1))
+      Program () (Version 1 1 0) $
+        Apply ()
+          ( Apply ()
+              ( LamAbs () (DeBruijn 0) . LamAbs () (DeBruijn 0) $
+                  Apply () (Apply () (Builtin () AddInteger) (Var () (DeBruijn 2))) (Var () (DeBruijn 1))
               )
-              (Constant (CInteger 2))
+              (Constant () (CInteger 2))
           )
-          (Constant (CInteger 3))
+          (Constant () (CInteger 3))
     exampleBytes =
       BS.pack [0x01, 0x01, 0x00, 0x33, 0x22, 0x33, 0x70, 0x00, 0x04, 0x00, 0x29, 0x00, 0x22, 0x40, 0x0d]
 
@@ -110,11 +123,11 @@ goldenShapes =
     ]
   where
     shapes =
-      Program (Version 1 1 0) $
-        Case
-          (Constr 1 [Delay (Force Error), Constant (CBool True)])
-          [ Constant CUnit
-          , Constant
+      Program () (Version 1 1 0) $
+        Case ()
+          (Constr () 1 [Delay () (Force () (Error ())), Constant () (CBool True)])
+          [ Constant () CUnit
+          , Constant ()
               ( CList
                   (TyPair TyByteString TyString)
                   [CPair TyByteString TyString (CByteString (BS.pack [0xab])) (CString (T.pack "a"))]
@@ -145,7 +158,7 @@ goldenChunks =
         decodeProgram bytes @?= Right program
     ]
   where
-    program = Program (Version 1 1 0) (Constant (CByteString (BS.replicate 300 0xab)))
+    program = Program () (Version 1 1 0) (Constant () (CByteString (BS.replicate 300 0xab)))
     bytes =
       BS.concat
         [ BS.pack [0x01, 0x01, 0x00, 0x48, 0x81] -- version; constant, type [1], padding
@@ -172,10 +185,10 @@ goldenSpec =
     ]
   where
     program =
-      Program (Version 5 0 2) $
-        Apply
-          (Apply (Builtin IndexByteString) (Constant (CByteString (BS.pack [0x1a, 0x5f, 0x78, 0x36, 0x25, 0xee, 0x8c]))))
-          (Constant (CInteger 54321))
+      Program () (Version 5 0 2) $
+        Apply ()
+          (Apply () (Builtin () IndexByteString) (Constant () (CByteString (BS.pack [0x1a, 0x5f, 0x78, 0x36, 0x25, 0xee, 0x8c]))))
+          (Constant () (CInteger 54321))
     bytes =
       BS.pack
         [ 0x05, 0x00, 0x02, 0x33, 0x71, 0xc9, 0x11, 0x07, 0x1a, 0x5f, 0x78, 0x36, 0x25, 0xee
@@ -208,7 +221,7 @@ negatives =
       -- failure.
       testCase "a free variable decodes" $
         decodeProgram (BS.pack [0x01, 0x00, 0x00, 0x00, 0x11])
-          @?= Right (Program (Version 1 0 0) (Var (DeBruijn 1)))
+          @?= Right (Program () (Version 1 0 0) (Var () (DeBruijn 1)))
     ]
 
 -- Both references read padding as 0s up to the first 1 and then require
@@ -219,7 +232,7 @@ padding =
     "Padding"
     [ testCase "whole extra bytes of 0s are accepted" $
         decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x60, 0x00, 0x01])
-          @?= Right (Program (Version 1 1 0) Error)
+          @?= Right (Program () (Version 1 1 0) (Error ()))
     , testCase "a closing 1 that does not end a byte is refused" $
         decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x62])
           @?= Left (BadFiller 28)
@@ -235,22 +248,22 @@ readingRules =
     "Reading rules"
     [ testCase "an index padded to two groups is read" $
         decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x08, 0x10, 0x01])
-          @?= Right (Program (Version 1 1 0) (Var (DeBruijn 1)))
+          @?= Right (Program () (Version 1 1 0) (Var () (DeBruijn 1)))
     , testCase "an index padded to ten groups is read" $
         decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x08, 0x18, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x00, 0x01])
-          @?= Right (Program (Version 1 1 0) (Var (DeBruijn 1)))
+          @?= Right (Program () (Version 1 1 0) (Var () (DeBruijn 1)))
     , testCase "an index padded to eleven groups is refused" $
         decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x08, 0x18, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x00, 0x01])
           @?= Left (WordOverflow 28)
     , testCase "a constr tag padded to two groups is read" $
         decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x88, 0x10, 0x01])
-          @?= Right (Program (Version 1 1 0) (Constr 1 []))
+          @?= Right (Program () (Version 1 1 0) (Constr () 1 []))
     , testCase "a constr tag padded to eleven groups is refused" $
         decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x88, 0x18, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x00, 0x01])
           @?= Left (WordOverflow 28)
     , testCase "a version padded to eleven groups is read" $
         decodeProgram (BS.pack [0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00, 0x01, 0x00, 0x61])
-          @?= Right (Program (Version 1 1 0) Error)
+          @?= Right (Program () (Version 1 1 0) (Error ()))
     , -- plutus-core's flat layer accepts this and its ledger refuses it, as
       -- it refuses every version but 1.0.0 and 1.1.0.
       testCase "a version past 2^64 is refused" $
@@ -260,7 +273,7 @@ readingRules =
       -- reference's does; only the writer is held to 255-byte chunks.
       testCase "a non-canonically chunked byte string is read" $
         decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x48, 0x81, 0x01, 0x61, 0x02, 0x62, 0x63, 0x00, 0x01])
-          @?= Right (Program (Version 1 1 0) (Constant (CByteString (BS.pack [0x61, 0x62, 0x63]))))
+          @?= Right (Program () (Version 1 1 0) (Constant () (CByteString (BS.pack [0x61, 0x62, 0x63]))))
     , testCase "a string that is not UTF-8 is refused" $
         decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x49, 0x01, 0x01, 0xff, 0x00, 0x01])
           @?= Left (InvalidUtf8 34)
@@ -271,10 +284,10 @@ readingRules =
       -- leaves that to scope checking.
       testCase "index zero is read" $
         decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x00, 0x01])
-          @?= Right (Program (Version 1 1 0) (Var (DeBruijn 0)))
+          @?= Right (Program () (Version 1 1 0) (Var () (DeBruijn 0)))
     , testCase "a padded integer constant is read" $
         decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x48, 0x21, 0x20, 0x20, 0x00, 0x01])
-          @?= Right (Program (Version 1 1 0) (Constant (CInteger 2)))
+          @?= Right (Program () (Version 1 1 0) (Constant () (CInteger 2)))
     ]
 
 -- The edges: a BLS type with no value, which works, and a data constant,
@@ -284,12 +297,12 @@ gaps =
   testGroup
     "Release gaps"
     [ testCase "an empty list of BLS elements round-trips" $ do
-        let p = Program (Version 1 1 0) (Constant (CList TyBLS12_381_G1_Element []))
+        let p = Program () (Version 1 1 0) (Constant () (CList TyBLS12_381_G1_Element []))
         case encodeProgram p of
           Left e -> assertFailure (show e)
           Right bytes -> decodeProgram bytes @?= Right p
     , testCase "a data constant is refused by the encoder" $
-        encodeProgram (Program (Version 1 1 0) (Constant (CData (Data.I 0))))
+        encodeProgram (Program () (Version 1 1 0) (Constant () (CData (Data.I 0))))
           @?= Left EncodeDataConstant
     ]
 

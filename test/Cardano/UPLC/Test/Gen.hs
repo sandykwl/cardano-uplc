@@ -34,14 +34,14 @@ import Cardano.UPLC.Ty (Ty (..))
 @data@ constants, at version 1.0.0 or 1.1.0. Below 1.1.0 the term has no
 @constr@ or @case@, since the decoder refuses them there.
 -}
-newtype Encodable = Encodable (Program DeBruijn)
+newtype Encodable = Encodable (Program DeBruijn ())
   deriving stock (Eq, Show)
 
 instance Arbitrary Encodable where
   arbitrary = do
     version <- elements [Version 1 0 0, Version 1 1 0]
-    Encodable . Program version <$> genTerm (version >= Version 1 1 0) 0
-  shrink (Encodable (Program v t)) = Encodable . Program v <$> shrinkTerm 0 t
+    Encodable . Program () version <$> genTerm (version >= Version 1 1 0) 0
+  shrink (Encodable (Program () v t)) = Encodable . Program () v <$> shrinkTerm 0 t
 
 {- | A constant whose type is nested up to four levels deep, each depth
 equally likely. The usual size-based generator hardly ever produces deep
@@ -59,57 +59,57 @@ instance Arbitrary Nested where
 
 -- A term with the given number of binders in scope. Var only appears where
 -- the depth allows it, and the depth rises by one under every LamAbs.
-genTerm :: Bool -> Word64 -> Gen (Term DeBruijn)
+genTerm :: Bool -> Word64 -> Gen (Term DeBruijn ())
 genTerm constrCase depth = sized (go depth)
   where
-    go :: Word64 -> Int -> Gen (Term DeBruijn)
+    go :: Word64 -> Int -> Gen (Term DeBruijn ())
     go d size
       | size <= 0 = oneof (leaves d)
       | otherwise = oneof (leaves d <> branches d)
 
-    leaves :: Word64 -> [Gen (Term DeBruijn)]
+    leaves :: Word64 -> [Gen (Term DeBruijn ())]
     leaves d =
-      [ pure Error
-      , Constant <$> (genConstant =<< choose (0, 2))
-      , Builtin <$> arbitraryBoundedEnum
+      [ pure (Error ())
+      , Constant () <$> (genConstant =<< choose (0, 2))
+      , Builtin () <$> arbitraryBoundedEnum
       ]
-        <> [Var . DeBruijn <$> choose (1, d) | d > 0]
+        <> [Var () . DeBruijn <$> choose (1, d) | d > 0]
 
     -- DeBruijn 0 in a binder position is a placeholder: the wire carries
     -- nothing there, and no Var refers to it.
-    branches :: Word64 -> [Gen (Term DeBruijn)]
+    branches :: Word64 -> [Gen (Term DeBruijn ())]
     branches d =
-      [ LamAbs (DeBruijn 0) <$> half (d + 1)
-      , Apply <$> half d <*> half d
-      , Delay <$> half d
-      , Force <$> half d
+      [ LamAbs () (DeBruijn 0) <$> half (d + 1)
+      , Apply () <$> half d <*> half d
+      , Delay () <$> half d
+      , Force () <$> half d
       ]
-        <> [ Constr <$> arbitrary <*> scaleDown (listOf (half d)) | constrCase ]
-        <> [ Case <$> half d <*> scaleDown (listOf (half d)) | constrCase ]
+        <> [ Constr () <$> arbitrary <*> scaleDown (listOf (half d)) | constrCase ]
+        <> [ Case () <$> half d <*> scaleDown (listOf (half d)) | constrCase ]
 
-    half :: Word64 -> Gen (Term DeBruijn)
+    half :: Word64 -> Gen (Term DeBruijn ())
     half d = scale (`quot` 2) (genTerm constrCase d)
 
 -- A lambda's body is only shrunk in place, one deeper, so no variable is
 -- left pointing past the binder it referred to.
-shrinkTerm :: Word64 -> Term DeBruijn -> [Term DeBruijn]
+shrinkTerm :: Word64 -> Term DeBruijn () -> [Term DeBruijn ()]
 shrinkTerm d = \case
-  Var (DeBruijn i) -> [Var (DeBruijn j) | j <- shrink i, j >= 1]
-  Constant c -> Constant <$> shrinkConstant c
-  Builtin f -> Builtin <$> takeWhile (< f) [minBound ..]
-  Error -> []
-  Delay t -> t : (Delay <$> shrinkTerm d t)
-  Force t -> t : (Force <$> shrinkTerm d t)
-  LamAbs n t -> LamAbs n <$> shrinkTerm (d + 1) t
-  Apply f x ->
+  Var () (DeBruijn i) -> [Var () (DeBruijn j) | j <- shrink i, j >= 1]
+  Constant () c -> Constant () <$> shrinkConstant c
+  Builtin () f -> Builtin () <$> takeWhile (< f) [minBound ..]
+  Error () -> []
+  Delay () t -> t : (Delay () <$> shrinkTerm d t)
+  Force () t -> t : (Force () <$> shrinkTerm d t)
+  LamAbs () n t -> LamAbs () n <$> shrinkTerm (d + 1) t
+  Apply () f x ->
     [f, x]
-      <> [Apply f' x | f' <- shrinkTerm d f]
-      <> [Apply f x' | x' <- shrinkTerm d x]
-  Constr t xs -> xs <> (Constr t <$> shrinkList (shrinkTerm d) xs)
-  Case s xs ->
+      <> [Apply () f' x | f' <- shrinkTerm d f]
+      <> [Apply () f x' | x' <- shrinkTerm d x]
+  Constr () t xs -> xs <> (Constr () t <$> shrinkList (shrinkTerm d) xs)
+  Case () s xs ->
     (s : xs)
-      <> [Case s' xs | s' <- shrinkTerm d s]
-      <> (Case s <$> shrinkList (shrinkTerm d) xs)
+      <> [Case () s' xs | s' <- shrinkTerm d s]
+      <> (Case () s <$> shrinkList (shrinkTerm d) xs)
 
 -- A type exactly this deep, together with a generator for its values, so
 -- the two always match. No TyData, whose values need a CBOR codec, and no
