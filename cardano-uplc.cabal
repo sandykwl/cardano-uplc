@@ -48,27 +48,34 @@ library
     Cardano.UPLC.Builtin
     Cardano.UPLC.Constant
     Cardano.UPLC.Data
+    Cardano.UPLC.Data.Cbor
     Cardano.UPLC.Flat
     Cardano.UPLC.Name
     Cardano.UPLC.Term
     Cardano.UPLC.Ty
 
   -- The codec's bit layer and error types. Cardano.UPLC.Flat re-exports the
-  -- errors, and nothing outside the package needs the bit layer.
+  -- errors, and nothing outside the package needs the bit layer. The CBOR
+  -- internals hold the reader the flat codec uses for data constants.
   other-modules:
+    Cardano.UPLC.Data.Cbor.Internal
     Cardano.UPLC.Flat.Bits
     Cardano.UPLC.Flat.Error
 
   build-depends:
-      , bytestring >=0.11 && <0.13
-      , text        >=2.0  && <2.2
+      , bytestring   >=0.11   && <0.13
+      , cborg        >=0.2.10 && <0.3
+      , text         >=2.0    && <2.2
+      , transformers >=0.6    && <0.7
 
 test-suite tests
   import:         lang
   type:           exitcode-stdio-1.0
   main-is:        Test.hs
   hs-source-dirs: test
-  other-modules:  Cardano.UPLC.Test.Gen
+  other-modules:
+    Cardano.UPLC.Test.Gen
+    DataCbor
   build-depends:
     , bytestring
     , cardano-uplc

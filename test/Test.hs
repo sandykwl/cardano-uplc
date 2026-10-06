@@ -28,11 +28,16 @@ import Cardano.UPLC.Name (DeBruijn (DeBruijn))
 import Cardano.UPLC.Term (Program (Program), Term (..), Version (Version))
 import Cardano.UPLC.Test.Gen (Encodable (Encodable), Nested (Nested))
 import Cardano.UPLC.Ty (Ty (..))
+import DataCbor (dataCborTests)
 
 main :: IO ()
 main =
   defaultMain . adjustOption (max (1_000 :: QuickCheckTests)) $
-    testGroup "Flat" [tagTables, roundTrips, annotations, golden, goldenShapes, goldenChunks, goldenSpec, negatives, padding, readingRules, gaps]
+    testGroup
+      "cardano-uplc"
+      [ testGroup "Flat" [tagTables, roundTrips, annotations, golden, goldenShapes, goldenChunks, goldenSpec, negatives, padding, readingRules, gaps]
+      , dataCborTests
+      ]
 
 -- Position in the declaration is the wire tag, so a dropped or reordered
 -- line would renumber everything after it and no round trip would notice.
