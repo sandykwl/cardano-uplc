@@ -20,9 +20,10 @@ depends on nothing from `plutus-core`, so it can be used independently.
 
 The library provides the syntax, under `Cardano.UPLC`: the term and program
 types, binders, builtins, constants and their types, and `Data`. It depends
-on `bytestring`, `text`, `transformers`, `vector` and `cborg`, which bring
-`half`, `primitive` and `vector-stream`; nothing needs a system library, and it
-builds with plain `cabal` against Hackage, without Nix.
+on `bytestring`, `containers`, `text`, `transformers`, `vector` and `cborg`,
+which bring `half`, `primitive` and `vector-stream`. `containers` ships with
+GHC. Nothing needs a system library, and the package builds with plain `cabal`
+against Hackage, without Nix.
 
 `Cardano.UPLC.Flat` is a first version of the flat codec, in both directions,
 and is still under review. Flat is the form a script takes on chain, and the
@@ -33,8 +34,10 @@ context are built from. CBOR is its wire form wherever it appears: in a
 transaction's datum and redeemer fields, with no script involved, and inside a
 flat program that holds one as a constant, where the payload is a CBOR byte
 string. `Cardano.UPLC.Data.Cbor` reads and writes it, byte for byte as
-plutus-core does, and the flat codec uses it for `data` constants. The
-ledger's `value` type is not handled yet.
+plutus-core does, and the flat codec uses it for `data` constants.
+`Cardano.UPLC.Value` is the ledger's multi-asset `value` type, built on
+nested maps as plutus-core's is, and the flat codec reads and writes `value`
+constants with plutus-core's refusals.
 
 The CEK machine, cost metering, the builtins and version gating follow in
 later releases, roughly in that order, since each one needs the ones before

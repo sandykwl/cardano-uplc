@@ -1,6 +1,5 @@
-{- | Literal values. Four the specification allows are missing: the three
-BLS12-381 elements, which only a builtin can produce, and the ledger's
-@Value@.
+{- | Literal values. Three the specification allows are missing: the BLS12-381
+elements, which only a builtin can produce.
 
 @since 0.1.0
 -}
@@ -13,6 +12,7 @@ import Data.Text (Text)
 import Data.Vector.Strict qualified as Strict
 import Cardano.UPLC.Data (Data)
 import Cardano.UPLC.Ty (Ty)
+import Cardano.UPLC.Value (Value)
 
 {- | A literal value in a program. List, array and pair carry their component
 types, since the flat encoding does not describe itself.
@@ -34,6 +34,7 @@ data Constant
   | CArray !Ty !(Strict.Vector Constant)
   | CPair !Ty !Ty !Constant !Constant
   | CData !Data
+  | CValue !Value
   deriving stock
     ( -- | @since 0.1.0
       Eq

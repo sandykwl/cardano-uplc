@@ -40,8 +40,8 @@ element types:
 > pair t1 t2  = 7, 7, 6, tags of t1, tags of t2
 
 So a list of integers is @[7,5,0]@, and a pair of an integer and a bool is
-@[7,7,6,0,4]@. Tag 13 is the ledger's @value@ type, which this release
-doesn't support yet. Tags 14 and 15 are unassigned.
+@[7,7,6,0,4]@. Tag 13 is the ledger's @value@ type, and tags 14 and 15 are
+unassigned.
 
 The value comes straight after the type, with no tag of its own:
 
@@ -54,6 +54,8 @@ The value comes straight after the type, with no tag of its own:
 > list, array  a list of values
 > pair         the two values in order
 > data         its CBOR bytes, as a bytestring
+> value        a list of currencies, each a bytestring and then a list of
+>              tokens, each a bytestring and then an integer
 
 A natural is written seven bits at a time, lowest first, each group in a
 byte whose top bit says whether another follows. A list is a 1 bit before
@@ -66,14 +68,16 @@ then a 1, so it is always at least one bit long.
 * @constr@ and @case@ in programs older than version 1.1.0
 * builtin tags beyond the ones this release knows
 * type tags that don't form a type
+* @value@ constants that break the type's rules: a key over 32 bytes, a
+  quantity outside 128 bits or equal to zero, a currency with no tokens, or
+  currencies or tokens not in strictly ascending order
 * padding whose closing 1 doesn't end a byte
 * anything after the final padding
 
 It also turns away values of the BLS12-381 types, because flat never
 carries them: a script holds a curve point as compressed bytes and
 uncompresses it at run time, and an MlResult only exists while a script
-runs. The reference refuses them the same way. The @value@ type is turned
-away only until this release can handle it.
+runs. The reference refuses them the same way.
 
 A @data@ constant whose bytes are not a 'Cardano.UPLC.Data.Data' value is
 turned away too. Bytes after one whole value are not: the reference reads the
@@ -89,9 +93,11 @@ module Cardano.UPLC.Flat (
   -- * Decoding
   decodeProgram,
   DecodeError (..),
+  ValueError (..),
 ) where
 
 import Data.ByteString (ByteString)
+import Data.Map.Strict qualified as Map
 import Data.Vector qualified as Vector
 import Data.Vector.Strict qualified as Strict
 import Data.Word (Word8)
@@ -126,10 +132,11 @@ import Cardano.UPLC.Flat.Bits (
   runGet,
   runOut,
  )
-import Cardano.UPLC.Flat.Error (DecodeError (..))
+import Cardano.UPLC.Flat.Error (DecodeError (..), ValueError (..))
 import Cardano.UPLC.Name (DeBruijn (DeBruijn))
 import Cardano.UPLC.Term (Program (Program), Term (..), Version (Version))
 import Cardano.UPLC.Ty (Ty (..))
+import Cardano.UPLC.Value (K, Value, Quantity, k, pack, quantity, unK, unQuantity, unpack)
 
 {- | Encode a program. Annotations are not written: flat has no place for
 them.
@@ -174,6 +181,10 @@ putValue c out = case c of
   CArray _ xs -> pushListWith putValue (Strict.toList xs) out
   CPair _ _ x y -> putValue y (putValue x out)
   CData d -> pushByteString (encodeData d) out
+  CValue v -> pushListWith putCurrency (Map.toAscList (unpack v)) out
+  where
+    putCurrency (symbol, tokens) = pushListWith putToken (Map.toAscList tokens) . pushByteString (unK symbol)
+    putToken (t, q) = pushInteger (unQuantity q) . pushByteString (unK t)
 
 tyOf :: Constant -> Ty
 tyOf = \case
@@ -186,6 +197,7 @@ tyOf = \case
   CArray t _ -> TyArray t
   CPair a b _ _ -> TyPair a b
   CData _ -> TyData
+  CValue _ -> TyValue
 
 tyTags :: Ty -> [Word8]
 tyTags = \case
@@ -201,6 +213,7 @@ tyTags = \case
   TyBLS12_381_G2_Element -> [10]
   TyBLS12_381_MlResult -> [11]
   TyArray t -> [7, 12] <> tyTags t
+  TyValue -> [13]
 
 {- | Decode a program from flat bytes, with the CBOR wrapper already
 removed. Nothing may follow the program. The bytes carry no annotations, so
@@ -277,7 +290,7 @@ tyFromTags start tags = do
       9 : rest -> Right (TyBLS12_381_G1_Element, rest)
       10 : rest -> Right (TyBLS12_381_G2_Element, rest)
       11 : rest -> Right (TyBLS12_381_MlResult, rest)
-      13 : _ -> Left (UnsupportedTypeTag 13 start)
+      13 : rest -> Right (TyValue, rest)
       7 : 5 : rest -> do
         (t, rest') <- go rest
         Right (TyList t, rest')
@@ -305,9 +318,51 @@ getValueOf ty = case ty of
     bs <- getByteString
     -- Bytes after the value are ignored, as the reference ignores them.
     either (getFail . InvalidData start) (pure . CData . fst) (decodeDataPrefix bs)
+  TyValue -> CValue <$> getValue
   TyBLS12_381_G1_Element -> unsupported
   TyBLS12_381_G2_Element -> unsupported
   TyBLS12_381_MlResult -> unsupported
   where
     unsupported :: Get Constant
     unsupported = getOffset >>= getFail . UnsupportedValue ty
+
+-- The reads of plutus-core's Flat Value instance. Keys and quantities are
+-- checked as they are read; order and emptiness once a list is complete,
+-- which accepts the same inputs. Positions are where each item starts.
+getValue :: Get Value
+getValue = do
+  currencies <- getListWith $ do
+    start <- getOffset
+    c <- getKey
+    tokens <- getListWith ((,,) <$> getOffset <*> getKey <*> getQuantity)
+    pure (start, c, tokens)
+  inner <- traverse checkCurrency currencies
+  checkAscending CurrenciesNotAscending [(s, c) | (s, c, _) <- currencies]
+  pure (pack (Map.fromDistinctAscList inner))
+  where
+    checkCurrency (start, c, tokens) = case tokens of
+      [] -> getFail (InvalidValue EmptyTokenList start)
+      _ -> do
+        checkAscending TokensNotAscending [(s, t) | (s, t, _) <- tokens]
+        pure (c, Map.fromDistinctAscList [(t, q) | (_, t, q) <- tokens])
+
+getKey :: Get K
+getKey = do
+  start <- getOffset
+  bs <- getByteString
+  maybe (getFail (InvalidValue KeyTooLong start)) pure (k bs)
+
+getQuantity :: Get Quantity
+getQuantity = do
+  start <- getOffset
+  i <- getInteger
+  case quantity i of
+    Nothing -> getFail (InvalidValue QuantityOutOfRange start)
+    Just _ | i == 0 -> getFail (InvalidValue ZeroQuantity start)
+    Just q -> pure q
+
+-- Fails at the first key that is not greater than the one before it.
+checkAscending :: ValueError -> [(Int, K)] -> Get ()
+checkAscending e items = case [s | ((_, a), (s, b)) <- zip items (drop 1 items), a >= b] of
+  s : _ -> getFail (InvalidValue e s)
+  [] -> pure ()

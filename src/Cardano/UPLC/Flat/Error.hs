@@ -9,6 +9,7 @@ format packs fields to the bit.
 -}
 module Cardano.UPLC.Flat.Error (
   DecodeError (..),
+  ValueError (..),
 ) where
 
 import Data.Word (Word8)
@@ -51,11 +52,6 @@ data DecodeError
     --
     -- @since 0.1.0
     BadTypeTags ![Word8] !Int
-  | -- | Type tag 13, the ledger's @value@ type. t'Cardano.UPLC.Ty.Ty' has no
-    -- way to name it yet.
-    --
-    -- @since 0.1.0
-    UnsupportedTypeTag !Word8 !Int
   | -- | A value of a type the decoder can name but won't read. Flat never
     -- carries BLS12-381 values; a script holds a point as compressed bytes
     -- and uncompresses it at run time. The type on its own is fine, so an
@@ -69,6 +65,11 @@ data DecodeError
     --
     -- @since 0.1.0
     InvalidData !Int !DataDecodeError
+  | -- | A @value@ constant that breaks one of the ledger value's rules,
+    -- and the bit where the offending key or quantity starts.
+    --
+    -- @since 0.1.0
+    InvalidValue !ValueError !Int
   | -- | A @string@ constant whose bytes are not valid UTF-8.
     --
     -- @since 0.1.0
@@ -82,6 +83,45 @@ data DecodeError
     --
     -- @since 0.1.0
     TrailingInput !Int
+  deriving stock
+    ( -- | @since 0.1.0
+      Eq
+    , -- | @since 0.1.0
+      Show
+    )
+
+{- | Which rule of the @value@ type a constant broke. They are plutus-core's
+checks: the specification's conditions for a well-formed list, and its
+32-byte limit on keys.
+
+@since 0.1.0
+-}
+data ValueError
+  = -- | A currency symbol or token name over 32 bytes.
+    --
+    -- @since 0.1.0
+    KeyTooLong
+  | -- | A quantity outside -2^127 to 2^127 - 1.
+    --
+    -- @since 0.1.0
+    QuantityOutOfRange
+  | -- | A quantity of zero.
+    --
+    -- @since 0.1.0
+    ZeroQuantity
+  | -- | A currency with no tokens.
+    --
+    -- @since 0.1.0
+    EmptyTokenList
+  | -- | A currency symbol that does not come after the one before it, so
+    -- the list is descending or repeats one.
+    --
+    -- @since 0.1.0
+    CurrenciesNotAscending
+  | -- | A token name that does not come after the one before it.
+    --
+    -- @since 0.1.0
+    TokensNotAscending
   deriving stock
     ( -- | @since 0.1.0
       Eq

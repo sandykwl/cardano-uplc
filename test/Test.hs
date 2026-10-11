@@ -30,6 +30,7 @@ import Cardano.UPLC.Term (Program (Program), Term (..), Version (Version))
 import Cardano.UPLC.Test.Gen (Encodable (Encodable), Nested (Nested))
 import Cardano.UPLC.Ty (Ty (..))
 import DataCbor (dataCborTests)
+import ValueFlat (valueFlatTests)
 
 main :: IO ()
 main =
@@ -38,6 +39,7 @@ main =
       "cardano-uplc"
       [ testGroup "Flat" [tagTables, roundTrips, annotations, golden, goldenShapes, goldenChunks, goldenSpec, negatives, padding, readingRules, gaps]
       , dataCborTests
+      , valueFlatTests
       , names
       ]
 

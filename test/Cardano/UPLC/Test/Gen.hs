@@ -10,9 +10,11 @@ module Cardano.UPLC.Test.Gen (
   Encodable (Encodable),
   Nested (Nested),
   genData,
+  genValue,
 ) where
 
 import Data.ByteString qualified as BS
+import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 import Data.Vector qualified as Vector
 import Data.Vector.Strict qualified as Strict
@@ -35,6 +37,7 @@ import Cardano.UPLC.Data qualified as Data
 import Cardano.UPLC.Name (DeBruijn (DeBruijn))
 import Cardano.UPLC.Term (Program (Program), Term (..), Version (Version))
 import Cardano.UPLC.Ty (Ty (..))
+import Cardano.UPLC.Value (Value, k, pack, quantity, unpack)
 
 {- | A program the codec can take a round trip on: well-scoped, at version
 1.0.0 or 1.1.0. Below 1.1.0 the term has no @constr@ or @case@, since the
@@ -129,6 +132,7 @@ genWire depth
         , (TyUnit, pure CUnit)
         , (TyBool, CBool <$> arbitrary)
         , (TyData, CData <$> scaleDown genData)
+        , (TyValue, CValue <$> scaleDown genValue)
         ]
   | otherwise =
       oneof
@@ -165,6 +169,11 @@ shrinkConstant = \case
     [CPair a b x' y | x' <- shrinkConstant x]
       <> [CPair a b x y' | y' <- shrinkConstant y]
   CData _ -> []
+  CValue v ->
+    [ CValue (pack (Map.fromList (map (fmap Map.fromList) smaller)))
+    | let outer = [(c, Map.toList ts) | (c, ts) <- Map.toList (unpack v)]
+    , smaller <- shrinkList (const []) outer
+    ]
 
 -- Characters of several UTF-8 lengths, since strings are encoded as UTF-8.
 genChar :: Gen Char
@@ -217,3 +226,32 @@ genData = sized go
     genBytes =
       fmap BS.pack . flip vectorOf arbitrary
         =<< oneof [choose (0, 3), choose (62, 67), choose (126, 130)]
+
+{- | A 'Value' built to meet the codec's edges: keys of length 0, 1, 31 and 32
+over a two-letter alphabet, so one key is often a prefix of another and the
+order check has something to do, and quantities at the ends of the 128-bit
+range and either side of 2^63 and 2^64. Zero quantities and empty token
+lists are drawn too, for 'pack' to remove.
+-}
+genValue :: Gen Value
+genValue = do
+  currencies <- choose (0, 4)
+  entries <- vectorOf currencies ((,) <$> genKey <*> (choose (0, 4) >>= flip vectorOf ((,) <$> genKey <*> genQuantity)))
+  pure (pack (Map.fromList [(c, Map.fromList ts) | (c, ts) <- entries]))
+  where
+    genKey = do
+      len <- elements [0, 1, 1, 2, 31, 32]
+      bytes <- BS.pack <$> vectorOf len (elements [0x00, 0x01])
+      maybe (error "genValue: key too long") pure (k bytes)
+
+    genQuantity = do
+      n <-
+        oneof
+          [ choose (-3, 3)
+          , choose (2 ^ (63 :: Int) - 2, 2 ^ (63 :: Int) + 2)
+          , choose (-(2 ^ (64 :: Int)) - 2, -(2 ^ (64 :: Int)) + 2)
+          , choose (2 ^ (127 :: Int) - 3, 2 ^ (127 :: Int) - 1)
+          , choose (-(2 ^ (127 :: Int)), -(2 ^ (127 :: Int)) + 2)
+          , choose (-(2 ^ (127 :: Int)), 2 ^ (127 :: Int) - 1)
+          ]
+      maybe (error "genValue: quantity out of range") pure (quantity n)
