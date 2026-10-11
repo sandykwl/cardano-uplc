@@ -14,6 +14,8 @@ module Cardano.UPLC.Test.Gen (
 
 import Data.ByteString qualified as BS
 import Data.Text qualified as T
+import Data.Vector qualified as Vector
+import Data.Vector.Strict qualified as Strict
 import Data.Word (Word64)
 import Test.QuickCheck (
   Arbitrary (arbitrary, shrink),
@@ -89,7 +91,7 @@ genTerm constrCase depth = sized (go depth)
       , Force () <$> half d
       ]
         <> [ Constr () <$> arbitrary <*> scaleDown (listOf (half d)) | constrCase ]
-        <> [ Case () <$> half d <*> scaleDown (listOf (half d)) | constrCase ]
+        <> [ Case () <$> half d <*> (Vector.fromList <$> scaleDown (listOf (half d))) | constrCase ]
 
     half :: Word64 -> Gen (Term DeBruijn ())
     half d = scale (`quot` 2) (genTerm constrCase d)
@@ -111,9 +113,9 @@ shrinkTerm d = \case
       <> [Apply () f x' | x' <- shrinkTerm d x]
   Constr () t xs -> xs <> (Constr () t <$> shrinkList (shrinkTerm d) xs)
   Case () s xs ->
-    (s : xs)
+    (s : Vector.toList xs)
       <> [Case () s' xs | s' <- shrinkTerm d s]
-      <> (Case () s <$> shrinkList (shrinkTerm d) xs)
+      <> (Case () s . Vector.fromList <$> shrinkList (shrinkTerm d) (Vector.toList xs))
 
 -- A type exactly this deep, together with a generator for its values, so
 -- the two always match. No BLS types, whose values flat never carries.
@@ -135,7 +137,7 @@ genWire depth
             pure (TyList t, CList t <$> scaleDown (listOf g))
         , do
             (t, g) <- sub
-            pure (TyArray t, CArray t <$> scaleDown (listOf g))
+            pure (TyArray t, CArray t . Strict.fromList <$> scaleDown (listOf g))
         , do
             (a, ga) <- sub
             (b, gb) <- sub
@@ -158,7 +160,7 @@ shrinkConstant = \case
   CUnit -> []
   CBool b -> CBool <$> shrink b
   CList t xs -> CList t <$> shrinkList shrinkConstant xs
-  CArray t xs -> CArray t <$> shrinkList shrinkConstant xs
+  CArray t xs -> CArray t . Strict.fromList <$> shrinkList shrinkConstant (Strict.toList xs)
   CPair a b x y ->
     [CPair a b x' y | x' <- shrinkConstant x]
       <> [CPair a b x y' | y' <- shrinkConstant y]

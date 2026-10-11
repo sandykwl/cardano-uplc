@@ -12,6 +12,7 @@ module Main (main) where
 import Data.ByteString qualified as BS
 import Data.Foldable (toList)
 import Data.Text qualified as T
+import Data.Vector qualified as Vector
 import Test.Tasty (TestTree, adjustOption, defaultMain, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 import Test.Tasty.QuickCheck (QuickCheckTests, testProperty, (===))
@@ -24,7 +25,7 @@ import Cardano.UPLC.Flat (
   decodeProgram,
   encodeProgram,
  )
-import Cardano.UPLC.Name (DeBruijn (DeBruijn))
+import Cardano.UPLC.Name (DeBruijn (DeBruijn), Name (Name), Unique (Unique))
 import Cardano.UPLC.Term (Program (Program), Term (..), Version (Version))
 import Cardano.UPLC.Test.Gen (Encodable (Encodable), Nested (Nested))
 import Cardano.UPLC.Ty (Ty (..))
@@ -37,6 +38,7 @@ main =
       "cardano-uplc"
       [ testGroup "Flat" [tagTables, roundTrips, annotations, golden, goldenShapes, goldenChunks, goldenSpec, negatives, padding, readingRules, gaps]
       , dataCborTests
+      , names
       ]
 
 -- Position in the declaration is the wire tag, so a dropped or reordered
@@ -52,6 +54,16 @@ tagTables =
     , testCase "builtin tags match the corpus" $
         map fromEnum [Sha2_256, SerialiseData, Bls12_381_G1_uncompress, Bls12_381_G1_hashToGroup, Keccak_256, IndexArray]
           @?= [18, 51, 59, 60, 71, 91]
+    ]
+
+names :: TestTree
+names =
+  testGroup
+    "Names"
+    [ testCase "names with the same unique are equal, whatever their text" $
+        Name (T.pack "x") (Unique 1) == Name (T.pack "y") (Unique 1) @?= True
+    , testCase "names with different uniques are not" $
+        Name (T.pack "x") (Unique 1) == Name (T.pack "x") (Unique 2) @?= False
     ]
 
 roundTrips :: TestTree
@@ -129,13 +141,15 @@ goldenShapes =
       Program () (Version 1 1 0) $
         Case ()
           (Constr () 1 [Delay () (Force () (Error ())), Constant () (CBool True)])
-          [ Constant () CUnit
-          , Constant ()
-              ( CList
-                  (TyPair TyByteString TyString)
-                  [CPair TyByteString TyString (CByteString (BS.pack [0xab])) (CString (T.pack "a"))]
-              )
-          ]
+          ( Vector.fromList
+            [ Constant () CUnit
+            , Constant ()
+                ( CList
+                    (TyPair TyByteString TyString)
+                    [CPair TyByteString TyString (CByteString (BS.pack [0xab])) (CString (T.pack "a"))]
+                )
+            ]
+          )
     shapesBytes =
       BS.pack
         [ 0x01, 0x01, 0x00 -- version
@@ -267,11 +281,11 @@ readingRules =
     , testCase "a version padded to eleven groups is read" $
         decodeProgram (BS.pack [0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00, 0x01, 0x00, 0x61])
           @?= Right (Program () (Version 1 1 0) (Error ()))
-    , -- plutus-core's flat layer accepts this and its ledger refuses it, as
-      -- it refuses every version but 1.0.0 and 1.1.0.
-      testCase "a version past 2^64 is refused" $
+    , -- Flat allows any version. The ledger refuses this one later, as it
+      -- refuses every version but 1.0.0 and 1.1.0.
+      testCase "a version past 2^64 is read" $
         decodeProgram (BS.pack [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02, 0x01, 0x00, 0x61])
-          @?= Left (WordOverflow 0)
+          @?= Right (Program () (Version (2 ^ (64 :: Int)) 1 0) (Error ()))
     , -- "abc" split 1 + 2: the reader takes any chunking, as the
       -- reference's does; only the writer is held to 255-byte chunks.
       testCase "a non-canonically chunked byte string is read" $

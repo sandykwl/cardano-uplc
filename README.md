@@ -20,9 +20,9 @@ depends on nothing from `plutus-core`, so it can be used independently.
 
 The library provides the syntax, under `Cardano.UPLC`: the term and program
 types, binders, builtins, constants and their types, and `Data`. It depends
-on `bytestring`, `text`, `transformers` and `cborg`, which brings `half` and
-`primitive`; nothing needs a system library, and it builds with plain `cabal`
-against Hackage, without Nix.
+on `bytestring`, `text`, `transformers`, `vector` and `cborg`, which bring
+`half`, `primitive` and `vector-stream`; nothing needs a system library, and it
+builds with plain `cabal` against Hackage, without Nix.
 
 `Cardano.UPLC.Flat` is a first version of the flat codec, in both directions,
 and is still under review. Flat is the form a script takes on chain, and the

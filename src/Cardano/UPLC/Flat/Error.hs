@@ -24,8 +24,8 @@ data DecodeError
     --
     -- @since 0.1.0
     EndOfInput !Int
-  | -- | A de Bruijn index, @constr@ tag or version number too big for a
-    -- 'Data.Word.Word64', or an index or tag written with more than ten
+  | -- | A de Bruijn index or @constr@ tag too big for a
+    -- 'Data.Word.Word64', or one written with more than ten
     -- seven-bit groups. Integer constants have no size limit, so they never
     -- cause this.
     --

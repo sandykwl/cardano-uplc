@@ -67,6 +67,7 @@ library
       , cborg        >=0.2.10 && <0.3
       , text         >=2.0    && <2.2
       , transformers >=0.6    && <0.7
+      , vector       >=0.13.2 && <0.14
 
 test-suite tests
   import:         lang
@@ -84,3 +85,4 @@ test-suite tests
     , tasty-hunit       >=0.10 && <0.11
     , tasty-quickcheck  >=0.10 && <0.12
     , text
+    , vector

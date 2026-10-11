@@ -15,6 +15,7 @@ module Cardano.UPLC.Flat.Bits (
   pushBit,
   pushBits,
   pushFiller,
+  pushNatural,
   pushWord64,
   pushInteger,
   pushByteString,
@@ -29,7 +30,7 @@ module Cardano.UPLC.Flat.Bits (
   getBit,
   getBits,
   getWord64,
-  getNaturalWord64,
+  getNatural,
   getInteger,
   getFiller,
   getByteString,
@@ -111,8 +112,12 @@ with it.
 pushFiller :: Out -> Out
 pushFiller out@(Out _ _ used) = pushBits (8 - used) 1 out
 
--- Seven-bit blocks, least significant first, each in a byte whose top bit
--- says whether another follows. Values below 128 cost one byte.
+{- | Write a natural, as used for versions: seven-bit blocks, least
+significant first, each in a byte whose top bit says whether another follows.
+Values below 128 cost one byte.
+
+@since 0.1.0
+-}
 pushNatural :: Natural -> Out -> Out
 pushNatural n out =
   let low = fromIntegral (n .&. 0x7f) :: Word8
@@ -121,8 +126,8 @@ pushNatural n out =
         then pushBits 8 low out
         else pushNatural rest (pushBits 8 (0x80 .|. low) out)
 
-{- | Write a word-sized natural, as used for versions, de Bruijn indices
-and @constr@ tags.
+{- | Write a word-sized natural, as used for de Bruijn indices and @constr@
+tags.
 
 @since 0.1.0
 -}
@@ -259,8 +264,11 @@ getBits = go 0
           b <- getBit
           go (shiftL acc 1 .|. (if b then 1 else 0)) (n - 1)
 
--- Reads what pushNatural writes. There is no size limit, because integer
--- constants can be arbitrarily large.
+{- | Read what 'pushNatural' writes, with no size limit, as plutus-core
+reads versions and integer constants.
+
+@since 0.1.0
+-}
 getNatural :: Get Natural
 getNatural = go 0 0
   where
@@ -297,20 +305,6 @@ getWord64 = do
               then go (shift + 7) acc'
               else pure acc'
   go 0 0
-
-{- | Read a natural of any length and refuse one past 'Word64'. Version
-numbers are read this way: the reference reads them as unbounded naturals,
-and a version too big for a 'Word64' is not one the ledger accepts.
-
-@since 0.1.0
--}
-getNaturalWord64 :: Get Word64
-getNaturalWord64 = do
-  start <- getOffset
-  n <- getNatural
-  if n > fromIntegral (maxBound :: Word64)
-    then getFail (WordOverflow start)
-    else pure (fromIntegral n)
 
 {- | Read a signed integer of any size.
 

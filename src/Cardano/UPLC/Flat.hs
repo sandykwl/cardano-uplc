@@ -92,6 +92,8 @@ module Cardano.UPLC.Flat (
 ) where
 
 import Data.ByteString (ByteString)
+import Data.Vector qualified as Vector
+import Data.Vector.Strict qualified as Strict
 import Data.Word (Word8)
 import Cardano.UPLC.Builtin (DefaultFun)
 import Cardano.UPLC.Constant (Constant (..))
@@ -110,7 +112,7 @@ import Cardano.UPLC.Flat.Bits (
   getListWith,
   getOffset,
   getText,
-  getNaturalWord64,
+  getNatural,
   getWord64,
   pushBit,
   pushBits,
@@ -119,6 +121,7 @@ import Cardano.UPLC.Flat.Bits (
   pushInteger,
   pushListWith,
   pushText,
+  pushNatural,
   pushWord64,
   runGet,
   runOut,
@@ -135,7 +138,7 @@ them.
 -}
 encodeProgram :: Program DeBruijn ann -> ByteString
 encodeProgram (Program _ (Version major minor patch) term) =
-  runOut (pushFiller (putTerm term (pushWord64 patch . pushWord64 minor . pushWord64 major $ emptyOut)))
+  runOut (pushFiller (putTerm term (pushNatural patch . pushNatural minor . pushNatural major $ emptyOut)))
 
 -- The tags are the format's, written out. A lambda's parameter writes
 -- nothing, because a variable finds its binder by counting lambdas outward.
@@ -150,7 +153,7 @@ putTerm t out = case t of
   Error _ -> tag 6
   Builtin _ f -> pushBits 7 (fromIntegral (fromEnum f)) (tag 7)
   Constr _ w fields -> pushListWith putTerm fields (pushWord64 w (tag 8))
-  Case _ scrutinee branches -> pushListWith putTerm branches (putTerm scrutinee (tag 9))
+  Case _ scrutinee branches -> pushListWith putTerm (Vector.toList branches) (putTerm scrutinee (tag 9))
   where
     tag :: Word8 -> Out
     tag n = pushBits 4 n out
@@ -168,7 +171,7 @@ putValue c out = case c of
   CUnit -> out
   CBool b -> pushBit b out
   CList _ xs -> pushListWith putValue xs out
-  CArray _ xs -> pushListWith putValue xs out
+  CArray _ xs -> pushListWith putValue (Strict.toList xs) out
   CPair _ _ x y -> putValue y (putValue x out)
   CData d -> pushByteString (encodeData d) out
 
@@ -207,7 +210,7 @@ every one is @()@.
 -}
 decodeProgram :: ByteString -> Either DecodeError (Program DeBruijn ())
 decodeProgram = runGet $ do
-  version <- Version <$> getNaturalWord64 <*> getNaturalWord64 <*> getNaturalWord64
+  version <- Version <$> getNatural <*> getNatural <*> getNatural
   term <- getTerm version
   getFiller
   getEnd
@@ -229,7 +232,7 @@ getTerm version = go
         6 -> pure (Error ())
         7 -> Builtin () <$> getBuiltin
         8 -> gate tag start *> (Constr () <$> getWord64 <*> getListWith go)
-        9 -> gate tag start *> (Case () <$> go <*> getListWith go)
+        9 -> gate tag start *> (Case () <$> go <*> (Vector.fromList <$> getListWith go))
         _ -> getFail (BadTermTag tag start)
 
     gate :: Word8 -> Int -> Get ()
@@ -295,7 +298,7 @@ getValueOf ty = case ty of
   TyUnit -> pure CUnit
   TyBool -> CBool <$> getBit
   TyList t -> CList t <$> getListWith (getValueOf t)
-  TyArray t -> CArray t <$> getListWith (getValueOf t)
+  TyArray t -> CArray t . Strict.fromList <$> getListWith (getValueOf t)
   TyPair a b -> CPair a b <$> getValueOf a <*> getValueOf b
   TyData -> do
     start <- getOffset

@@ -15,7 +15,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `Cardano.UPLC.Name`, the two binder representations
 - `Cardano.UPLC.Builtin`, the builtin functions in flat tag order
 - `Cardano.UPLC.Term`, terms, versions and programs, each carrying an
-  annotation for tools; the codec writes none and decodes `()`
+  annotation for tools; the codec writes none and decodes `()`. `case`
+  branches and array constants are vectors, as in plutus-core, so the package
+  depends on `vector`
 - `Cardano.UPLC.Data.Cbor`, `Data` as CBOR, byte for byte as plutus-core
   writes and reads it
 - `Cardano.UPLC.Flat`, the flat codec, including `data` constants; the
