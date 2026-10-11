@@ -13,14 +13,14 @@ import Data.ByteString qualified as BS
 import Data.Foldable (toList)
 import Data.Text qualified as T
 import Test.Tasty (TestTree, adjustOption, defaultMain, testGroup)
-import Test.Tasty.HUnit (assertFailure, testCase, (@?=))
-import Test.Tasty.QuickCheck (QuickCheckTests, counterexample, testProperty, (===))
+import Test.Tasty.HUnit (testCase, (@?=))
+import Test.Tasty.QuickCheck (QuickCheckTests, testProperty, (===))
 import Cardano.UPLC.Builtin (DefaultFun (..))
 import Cardano.UPLC.Constant (Constant (..))
 import Cardano.UPLC.Data qualified as Data
+import Cardano.UPLC.Data.Cbor (DataDecodeError (..))
 import Cardano.UPLC.Flat (
   DecodeError (..),
-  EncodeError (EncodeDataConstant),
   decodeProgram,
   encodeProgram,
  )
@@ -64,9 +64,7 @@ roundTrips =
         \(Nested c) -> roundTrip (Program () (Version 1 1 0) (Constant () c))
     ]
   where
-    roundTrip p = case encodeProgram p of
-      Left e -> counterexample (show e) False
-      Right bytes -> decodeProgram bytes === Right p
+    roundTrip p = decodeProgram (encodeProgram p) === Right p
 
 annotations :: TestTree
 annotations =
@@ -91,7 +89,7 @@ golden =
   testGroup
     "Golden"
     [ testCase "the worked example encodes to the reference bytes" $
-        encodeProgram example @?= Right exampleBytes
+        encodeProgram example @?= exampleBytes
     , testCase "the reference bytes decode to the worked example" $
         decodeProgram exampleBytes @?= Right example
     ]
@@ -122,7 +120,7 @@ goldenShapes =
   testGroup
     "Golden, the other shapes"
     [ testCase "encodes to the hand-computed bytes" $
-        encodeProgram shapes @?= Right shapesBytes
+        encodeProgram shapes @?= shapesBytes
     , testCase "the hand-computed bytes decode to it" $
         decodeProgram shapesBytes @?= Right shapes
     ]
@@ -158,7 +156,7 @@ goldenChunks =
   testGroup
     "Golden, chunking"
     [ testCase "a 300-byte string is written as 255 and 45" $
-        encodeProgram program @?= Right bytes
+        encodeProgram program @?= bytes
     , testCase "and reads back" $
         decodeProgram bytes @?= Right program
     ]
@@ -184,7 +182,7 @@ goldenSpec =
   testGroup
     "Golden, the specification's example"
     [ testCase "encodes to the bytes the specification prints" $
-        encodeProgram program @?= Right bytes
+        encodeProgram program @?= bytes
     , testCase "and those bytes decode to it" $
         decodeProgram bytes @?= Right program
     ]
@@ -295,19 +293,28 @@ readingRules =
           @?= Right (Program () (Version 1 1 0) (Constant () (CInteger 2)))
     ]
 
--- The edges: a BLS type with no value, which works, and a data constant,
--- which waits for a CBOR codec.
+-- A BLS type with no value works. A data constant is its CBOR in a byte
+-- string; the bytes here are ones plutus-core reads and writes the same way.
 gaps :: TestTree
 gaps =
   testGroup
-    "Release gaps"
+    "Types without values, and data"
     [ testCase "an empty list of BLS elements round-trips" $ do
         let p = Program () (Version 1 1 0) (Constant () (CList TyBLS12_381_G1_Element []))
-        case encodeProgram p of
-          Left e -> assertFailure (show e)
-          Right bytes -> decodeProgram bytes @?= Right p
-    , testCase "a data constant is refused by the encoder" $
-        encodeProgram (Program () (Version 1 1 0) (Constant () (CData (Data.I 0))))
-          @?= Left EncodeDataConstant
+        decodeProgram (encodeProgram p) @?= Right p
+    , testCase "a data constant is written as its CBOR" $
+        encodeProgram dataI0 @?= dataI0Bytes
+    , testCase "and read back" $
+        decodeProgram dataI0Bytes @?= Right dataI0
+    , -- The reference reads one value and ignores the rest of the byte string.
+      testCase "bytes after the value are ignored, as the reference ignores them" $
+        decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x4c, 0x01, 0x02, 0x00, 0x00, 0x00, 0x01])
+          @?= Right dataI0
+    , testCase "a data constant with no bytes is refused" $
+        decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x4c, 0x01, 0x00, 0x01])
+          @?= Left (InvalidData 34 (CborError 0 (T.pack "end of input")))
     ]
+  where
+    dataI0 = Program () (Version 1 1 0) (Constant () (CData (Data.I 0)))
+    dataI0Bytes = BS.pack [0x01, 0x01, 0x00, 0x4c, 0x01, 0x01, 0x00, 0x00, 0x01]
 

@@ -72,8 +72,12 @@ then a 1, so it is always at least one bit long.
 It also turns away values of the BLS12-381 types, because flat never
 carries them: a script holds a curve point as compressed bytes and
 uncompresses it at run time, and an MlResult only exists while a script
-runs. The reference refuses them the same way. The @value@ type and @data@
-values are turned away only until this release can handle them. It doesn't
+runs. The reference refuses them the same way. The @value@ type is turned
+away only until this release can handle it.
+
+A @data@ constant whose bytes are not a 'Cardano.UPLC.Data.Data' value is
+turned away too. Bytes after one whole value are not: the reference reads the
+value and ignores the rest, so a constant holding @00 00@ is @I 0@. It doesn't
 check that every variable has a binder; that's a separate pass.
 
 @since 0.1.0
@@ -81,18 +85,17 @@ check that every variable has a binder; that's a separate pass.
 module Cardano.UPLC.Flat (
   -- * Encoding
   encodeProgram,
-  EncodeError (..),
 
   -- * Decoding
   decodeProgram,
   DecodeError (..),
 ) where
 
-import Control.Monad (foldM)
 import Data.ByteString (ByteString)
 import Data.Word (Word8)
 import Cardano.UPLC.Builtin (DefaultFun)
 import Cardano.UPLC.Constant (Constant (..))
+import Cardano.UPLC.Data.Cbor.Internal (decodeDataPrefix, encodeData)
 import Cardano.UPLC.Flat.Bits (
   Get,
   Out,
@@ -120,55 +123,54 @@ import Cardano.UPLC.Flat.Bits (
   runGet,
   runOut,
  )
-import Cardano.UPLC.Flat.Error (DecodeError (..), EncodeError (..))
+import Cardano.UPLC.Flat.Error (DecodeError (..))
 import Cardano.UPLC.Name (DeBruijn (DeBruijn))
 import Cardano.UPLC.Term (Program (Program), Term (..), Version (Version))
 import Cardano.UPLC.Ty (Ty (..))
 
-{- | Encode a program. It only fails on a @data@ constant; see
-'EncodeError'. Annotations are not written: flat has no place for them.
+{- | Encode a program. Annotations are not written: flat has no place for
+them.
 
 @since 0.1.0
 -}
-encodeProgram :: Program DeBruijn ann -> Either EncodeError ByteString
-encodeProgram (Program _ (Version major minor patch) term) = do
-  body <- putTerm term (pushWord64 patch . pushWord64 minor . pushWord64 major $ emptyOut)
-  pure (runOut (pushFiller body))
+encodeProgram :: Program DeBruijn ann -> ByteString
+encodeProgram (Program _ (Version major minor patch) term) =
+  runOut (pushFiller (putTerm term (pushWord64 patch . pushWord64 minor . pushWord64 major $ emptyOut)))
 
 -- The tags are the format's, written out. A lambda's parameter writes
 -- nothing, because a variable finds its binder by counting lambdas outward.
-putTerm :: Term DeBruijn ann -> Out -> Either EncodeError Out
+putTerm :: Term DeBruijn ann -> Out -> Out
 putTerm t out = case t of
-  Var _ (DeBruijn i) -> Right (pushWord64 i (tag 0))
+  Var _ (DeBruijn i) -> pushWord64 i (tag 0)
   Delay _ body -> putTerm body (tag 1)
   LamAbs _ _ body -> putTerm body (tag 2)
-  Apply _ f x -> putTerm f (tag 3) >>= putTerm x
+  Apply _ f x -> putTerm x (putTerm f (tag 3))
   Constant _ c -> putConstant c (tag 4)
   Force _ body -> putTerm body (tag 5)
-  Error _ -> Right (tag 6)
-  Builtin _ f -> Right (pushBits 7 (fromIntegral (fromEnum f)) (tag 7))
-  Constr _ w fields -> putListWith putTerm fields (pushWord64 w (tag 8))
-  Case _ scrutinee branches -> putTerm scrutinee (tag 9) >>= putListWith putTerm branches
+  Error _ -> tag 6
+  Builtin _ f -> pushBits 7 (fromIntegral (fromEnum f)) (tag 7)
+  Constr _ w fields -> pushListWith putTerm fields (pushWord64 w (tag 8))
+  Case _ scrutinee branches -> pushListWith putTerm branches (putTerm scrutinee (tag 9))
   where
     tag :: Word8 -> Out
     tag n = pushBits 4 n out
 
-putConstant :: Constant -> Out -> Either EncodeError Out
+putConstant :: Constant -> Out -> Out
 putConstant c out = putValue c (pushListWith (pushBits 4) (tyTags (tyOf c)) out)
 
 -- Only the outermost constant carries a type header; elements land here
 -- directly.
-putValue :: Constant -> Out -> Either EncodeError Out
+putValue :: Constant -> Out -> Out
 putValue c out = case c of
-  CInteger i -> Right (pushInteger i out)
-  CByteString bs -> Right (pushByteString bs out)
-  CString s -> Right (pushText s out)
-  CUnit -> Right out
-  CBool b -> Right (pushBit b out)
-  CList _ xs -> putListWith putValue xs out
-  CArray _ xs -> putListWith putValue xs out
-  CPair _ _ x y -> putValue x out >>= putValue y
-  CData _ -> Left EncodeDataConstant
+  CInteger i -> pushInteger i out
+  CByteString bs -> pushByteString bs out
+  CString s -> pushText s out
+  CUnit -> out
+  CBool b -> pushBit b out
+  CList _ xs -> pushListWith putValue xs out
+  CArray _ xs -> pushListWith putValue xs out
+  CPair _ _ x y -> putValue y (putValue x out)
+  CData d -> pushByteString (encodeData d) out
 
 tyOf :: Constant -> Ty
 tyOf = \case
@@ -196,10 +198,6 @@ tyTags = \case
   TyBLS12_381_G2_Element -> [10]
   TyBLS12_381_MlResult -> [11]
   TyArray t -> [7, 12] <> tyTags t
-
--- Like pushListWith, for element writers that can fail.
-putListWith :: (a -> Out -> Either EncodeError Out) -> [a] -> Out -> Either EncodeError Out
-putListWith f xs out = pushBit False <$> foldM (\o x -> f x (pushBit True o)) out xs
 
 {- | Decode a program from flat bytes, with the CBOR wrapper already
 removed. Nothing may follow the program. The bytes carry no annotations, so
@@ -299,7 +297,11 @@ getValueOf ty = case ty of
   TyList t -> CList t <$> getListWith (getValueOf t)
   TyArray t -> CArray t <$> getListWith (getValueOf t)
   TyPair a b -> CPair a b <$> getValueOf a <*> getValueOf b
-  TyData -> unsupported
+  TyData -> do
+    start <- getOffset
+    bs <- getByteString
+    -- Bytes after the value are ignored, as the reference ignores them.
+    either (getFail . InvalidData start) (pure . CData . fst) (decodeDataPrefix bs)
   TyBLS12_381_G1_Element -> unsupported
   TyBLS12_381_G2_Element -> unsupported
   TyBLS12_381_MlResult -> unsupported

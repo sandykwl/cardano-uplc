@@ -34,9 +34,9 @@ import Cardano.UPLC.Name (DeBruijn (DeBruijn))
 import Cardano.UPLC.Term (Program (Program), Term (..), Version (Version))
 import Cardano.UPLC.Ty (Ty (..))
 
-{- | A program the codec can take a round trip on: well-scoped, without
-@data@ constants, at version 1.0.0 or 1.1.0. Below 1.1.0 the term has no
-@constr@ or @case@, since the decoder refuses them there.
+{- | A program the codec can take a round trip on: well-scoped, at version
+1.0.0 or 1.1.0. Below 1.1.0 the term has no @constr@ or @case@, since the
+decoder refuses them there.
 -}
 newtype Encodable = Encodable (Program DeBruijn ())
   deriving stock (Eq, Show)
@@ -116,8 +116,7 @@ shrinkTerm d = \case
       <> (Case () s <$> shrinkList (shrinkTerm d) xs)
 
 -- A type exactly this deep, together with a generator for its values, so
--- the two always match. No TyData, whose values need a CBOR codec, and no
--- BLS types, whose values flat never carries.
+-- the two always match. No BLS types, whose values flat never carries.
 genWire :: Int -> Gen (Ty, Gen Constant)
 genWire depth
   | depth <= 0 =
@@ -127,6 +126,7 @@ genWire depth
         , (TyString, CString . T.pack <$> listOf genChar)
         , (TyUnit, pure CUnit)
         , (TyBool, CBool <$> arbitrary)
+        , (TyData, CData <$> scaleDown genData)
         ]
   | otherwise =
       oneof

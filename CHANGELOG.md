@@ -18,4 +18,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   annotation for tools; the codec writes none and decodes `()`
 - `Cardano.UPLC.Data.Cbor`, `Data` as CBOR, byte for byte as plutus-core
   writes and reads it
-- `Cardano.UPLC.Flat`, the flat codec
+- `Cardano.UPLC.Flat`, the flat codec, including `data` constants; the
+  encoder cannot fail

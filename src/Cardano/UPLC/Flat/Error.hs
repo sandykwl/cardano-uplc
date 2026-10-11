@@ -5,16 +5,14 @@ constructor, and each one records the bit where the problem was found,
 counting from zero. A byte offset would not be precise enough, because the
 format packs fields to the bit.
 
-The encoder only fails on something this release doesn't support yet.
-
 @since 0.1.0
 -}
 module Cardano.UPLC.Flat.Error (
   DecodeError (..),
-  EncodeError (..),
 ) where
 
 import Data.Word (Word8)
+import Cardano.UPLC.Data.Cbor.Internal (DataDecodeError)
 import Cardano.UPLC.Ty (Ty)
 
 {- | Why the decoder stopped, and at which bit.
@@ -60,11 +58,17 @@ data DecodeError
     UnsupportedTypeTag !Word8 !Int
   | -- | A value of a type the decoder can name but won't read. Flat never
     -- carries BLS12-381 values; a script holds a point as compressed bytes
-    -- and uncompresses it at run time. @data@ values wait for a CBOR codec.
-    -- The type on its own is fine, so an empty list of G1 elements decodes.
+    -- and uncompresses it at run time. The type on its own is fine, so an
+    -- empty list of G1 elements decodes.
     --
     -- @since 0.1.0
     UnsupportedValue !Ty !Int
+  | -- | A @data@ constant whose bytes are not a 'Cardano.UPLC.Data.Data'
+    -- value: the bit where its byte string starts, and what the CBOR reader
+    -- found, with its byte offset inside the constant.
+    --
+    -- @since 0.1.0
+    InvalidData !Int !DataDecodeError
   | -- | A @string@ constant whose bytes are not valid UTF-8.
     --
     -- @since 0.1.0
@@ -78,23 +82,6 @@ data DecodeError
     --
     -- @since 0.1.0
     TrailingInput !Int
-  deriving stock
-    ( -- | @since 0.1.0
-      Eq
-    , -- | @since 0.1.0
-      Show
-    )
-
-{- | Why the encoder produced no bytes.
-
-@since 0.1.0
--}
-data EncodeError
-  = -- | The program contains a @data@ constant. Those travel as CBOR, and
-    -- there is no CBOR codec yet. Once there is, this error goes away.
-    --
-    -- @since 0.1.0
-    EncodeDataConstant
   deriving stock
     ( -- | @since 0.1.0
       Eq
