@@ -11,8 +11,10 @@ module Cardano.UPLC.Name (
 
   -- * Parsed binders
   Name (..),
+  Unique (..),
 ) where
 
+import Data.Function (on)
 import Data.Text (Text)
 import Data.Word (Word64)
 
@@ -41,7 +43,8 @@ newtype DeBruijn = DeBruijn Word64
 t'DeBruijn' indices.
 
 An inner @\\x@ can hide an outer @\\x@; 'nameUnique' is the serial number that
-tells the two apart.
+tells the two apart. Names are equal when their uniques are, whatever the
+text says, as in plutus-core: the text is only for people reading the term.
 
 @since 0.1.0
 -}
@@ -50,16 +53,36 @@ data Name = Name
   -- ^ The identifier as written.
   --
   -- @since 0.1.0
-  , nameUnique :: !Word64
+  , nameUnique :: !Unique
   -- ^ Tells apart binders that share a 'nameText'.
   --
   -- @since 0.1.0
   }
   deriving stock
     ( -- | @since 0.1.0
+      Show
+    )
+
+-- | @since 0.1.0
+instance Eq Name where
+  (==) = (==) `on` nameUnique
+
+-- | @since 0.1.0
+instance Ord Name where
+  compare = compare `on` nameUnique
+
+{- | The serial number of a binder. An 'Int', as in plutus-core.
+
+@since 0.1.0
+-}
+newtype Unique = Unique {unUnique :: Int}
+  deriving stock
+    ( -- | @since 0.1.0
+      Show
+    )
+  deriving newtype
+    ( -- | @since 0.1.0
       Eq
     , -- | @since 0.1.0
       Ord
-    , -- | @since 0.1.0
-      Show
     )

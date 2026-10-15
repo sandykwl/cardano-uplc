@@ -15,8 +15,8 @@ encodes as a sequence of tags, so position is not the tag here.
 
 The three BLS12-381 types are here although "Cardano.UPLC.Constant" has no
 value of them. A type can occur without a value, as in an empty list of G1
-elements, and that program is legal. The ledger's @value@ type, tag 13, is
-not here yet.
+elements, and that program is legal. 'TyValue' is the ledger's @value@ type,
+tag 13.
 
 @since 0.1.0
 -}
@@ -33,6 +33,7 @@ data Ty
   | TyBLS12_381_G2_Element
   | TyBLS12_381_MlResult
   | TyArray !Ty
+  | TyValue
   deriving stock
     ( -- | @since 0.1.0
       Eq

@@ -5,9 +5,10 @@ not regroup the constructors by what they do; that changes the tags. Hashes and
 signature checks interleave because a tag records when a builtin arrived, not
 what it computes.
 
-Tags 94 to 100, @InsertCoin@ through @ScaleValue@, are absent: they work on the
-ledger @Value@ constant, which "Cardano.UPLC.Constant" does not carry. They sit at the
-top, so 0 to 93 stay contiguous.
+Tags 94 to 105 are absent: @InsertCoin@ through @ScaleValue@ work on the
+ledger @Value@ constant, and @MultiIndexArray@ through @DropPolicies@ come
+after them. The flat decoder refuses all of them with @BadBuiltinTag@. They
+sit at the top, so 0 to 93 stay contiguous.
 
 The tags match @plutus-core@ throughout, and 82 of them are confirmed against
 conformance-corpus bytes. Where Table C.6 of the specification disagrees --

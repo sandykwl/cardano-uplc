@@ -5,16 +5,15 @@ constructor, and each one records the bit where the problem was found,
 counting from zero. A byte offset would not be precise enough, because the
 format packs fields to the bit.
 
-The encoder only fails on something this release doesn't support yet.
-
 @since 0.1.0
 -}
 module Cardano.UPLC.Flat.Error (
   DecodeError (..),
-  EncodeError (..),
+  ValueError (..),
 ) where
 
 import Data.Word (Word8)
+import Cardano.UPLC.Data.Cbor.Internal (DataDecodeError)
 import Cardano.UPLC.Ty (Ty)
 
 {- | Why the decoder stopped, and at which bit.
@@ -26,8 +25,8 @@ data DecodeError
     --
     -- @since 0.1.0
     EndOfInput !Int
-  | -- | A de Bruijn index, @constr@ tag or version number too big for a
-    -- 'Data.Word.Word64', or an index or tag written with more than ten
+  | -- | A de Bruijn index or @constr@ tag too big for a
+    -- 'Data.Word.Word64', or one written with more than ten
     -- seven-bit groups. Integer constants have no size limit, so they never
     -- cause this.
     --
@@ -53,18 +52,24 @@ data DecodeError
     --
     -- @since 0.1.0
     BadTypeTags ![Word8] !Int
-  | -- | Type tag 13, the ledger's @value@ type. t'Cardano.UPLC.Ty.Ty' has no
-    -- way to name it yet.
-    --
-    -- @since 0.1.0
-    UnsupportedTypeTag !Word8 !Int
   | -- | A value of a type the decoder can name but won't read. Flat never
     -- carries BLS12-381 values; a script holds a point as compressed bytes
-    -- and uncompresses it at run time. @data@ values wait for a CBOR codec.
-    -- The type on its own is fine, so an empty list of G1 elements decodes.
+    -- and uncompresses it at run time. The type on its own is fine, so an
+    -- empty list of G1 elements decodes.
     --
     -- @since 0.1.0
     UnsupportedValue !Ty !Int
+  | -- | A @data@ constant whose bytes are not a 'Cardano.UPLC.Data.Data'
+    -- value: the bit where its byte string starts, and what the CBOR reader
+    -- found, with its byte offset inside the constant.
+    --
+    -- @since 0.1.0
+    InvalidData !Int !DataDecodeError
+  | -- | A @value@ constant that breaks one of the ledger value's rules,
+    -- and the bit where the offending key or quantity starts.
+    --
+    -- @since 0.1.0
+    InvalidValue !ValueError !Int
   | -- | A @string@ constant whose bytes are not valid UTF-8.
     --
     -- @since 0.1.0
@@ -85,16 +90,38 @@ data DecodeError
       Show
     )
 
-{- | Why the encoder produced no bytes.
+{- | Which rule of the @value@ type a constant broke. They are plutus-core's
+checks: the specification's conditions for a well-formed list, and its
+32-byte limit on keys.
 
 @since 0.1.0
 -}
-data EncodeError
-  = -- | The program contains a @data@ constant. Those travel as CBOR, and
-    -- there is no CBOR codec yet. Once there is, this error goes away.
+data ValueError
+  = -- | A currency symbol or token name over 32 bytes.
     --
     -- @since 0.1.0
-    EncodeDataConstant
+    KeyTooLong
+  | -- | A quantity outside -2^127 to 2^127 - 1.
+    --
+    -- @since 0.1.0
+    QuantityOutOfRange
+  | -- | A quantity of zero.
+    --
+    -- @since 0.1.0
+    ZeroQuantity
+  | -- | A currency with no tokens.
+    --
+    -- @since 0.1.0
+    EmptyTokenList
+  | -- | A currency symbol that does not come after the one before it, so
+    -- the list is descending or repeats one.
+    --
+    -- @since 0.1.0
+    CurrenciesNotAscending
+  | -- | A token name that does not come after the one before it.
+    --
+    -- @since 0.1.0
+    TokensNotAscending
   deriving stock
     ( -- | @since 0.1.0
       Eq
