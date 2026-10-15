@@ -1,7 +1,7 @@
 {- Tests for Data as CBOR.
 
-The golden bytes are plutus-core's, printed by its own encoder through the
-harness repl, never worked out by hand. The negatives check the exact error
+The golden bytes are plutus-core's, printed by its own encoder, never worked
+out by hand. The negatives check the exact error
 and where it points: this codec's own rules report the start of the item at
 fault, and anything the CBOR reader refuses keeps the reader's message.
 -}

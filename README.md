@@ -12,9 +12,10 @@ build, and anyone working on Plutarch has to learn `plutus-core`'s
 implementation choices as well as Plutarch's own.
 
 Amaru instead wrote its own UPLC implementation, a complete CEK machine
-designed for performance that does not require Nix. This package is that
-implementation in Haskell, ported from Amaru's `amaru-uplc` crate, and it
-depends on nothing from `plutus-core`, so it can be used independently.
+designed for performance that does not require Nix. This package is a UPLC
+implementation in Haskell, without Nix, built with reference to `amaru-uplc`,
+`plutus-core` and the Plutus Core specification. It depends on nothing from
+`plutus-core`, so it can be used independently.
 
 ## Where it stands
 
@@ -46,6 +47,6 @@ version gating follow in later releases.
 
 ## Correctness
 
-Semantics follow the Plutus specification rather than any single
-implementation of it, and correctness is to be measured against the official
-Plutus Conformance Test Suite.
+Where `plutus-core` and the Plutus Core specification differ, behaviour
+matches `plutus-core`, the implementation the network runs. Correctness is to
+be measured against the official Plutus Conformance Test Suite.
