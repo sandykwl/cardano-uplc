@@ -50,3 +50,9 @@ version gating follow in later releases.
 Where `plutus-core` and the Plutus Core specification differ, behaviour
 matches `plutus-core`, the implementation the network runs. Correctness is to
 be measured against the official Plutus Conformance Test Suite.
+
+## Acknowledgements
+
+The design follows Amaru's `amaru-uplc` crate, plutus-core and the Plutus
+Core specification. `amaru-uplc` and plutus-core are licensed under Apache
+2.0; see `NOTICE`.

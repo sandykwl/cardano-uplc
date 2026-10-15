@@ -18,6 +18,8 @@ maintainer:      sandykwl <lambdac.dev01@gmail.com>
 category:        Language
 extra-doc-files:
   CHANGELOG.md
+  LICENSE-APACHE
+  NOTICE
   README.md
 
 tested-with:     GHC ==9.6.7 || ==9.8.4
