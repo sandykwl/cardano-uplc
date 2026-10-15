@@ -50,6 +50,7 @@ library
     Cardano.UPLC.Data
     Cardano.UPLC.Data.Cbor
     Cardano.UPLC.Flat
+    Cardano.UPLC.Machine
     Cardano.UPLC.Name
     Cardano.UPLC.Term
     Cardano.UPLC.Ty
@@ -79,6 +80,7 @@ test-suite tests
   other-modules:
     Cardano.UPLC.Test.Gen
     DataCbor
+    Machine
     ValueFlat
   build-depends:
     , bytestring

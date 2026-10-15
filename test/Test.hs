@@ -5,7 +5,7 @@ golden test checks that they agree with the reference, on a small program
 whose bytes plutus-core reads and writes back unchanged. The negative cases
 are copied byte for byte from amaru-uplc's conformance suite, and each checks
 the exact error and where it happened, not just that decoding failed. The
-last group pins down what this release doesn't support yet.
+last group covers types without values, and data constants.
 -}
 module Main (main) where
 
@@ -30,6 +30,7 @@ import Cardano.UPLC.Term (Program (Program), Term (..), Version (Version))
 import Cardano.UPLC.Test.Gen (Encodable (Encodable), Nested (Nested))
 import Cardano.UPLC.Ty (Ty (..))
 import DataCbor (dataCborTests)
+import Machine (machineTests)
 import ValueFlat (valueFlatTests)
 
 main :: IO ()
@@ -40,6 +41,7 @@ main =
       [ testGroup "Flat" [tagTables, roundTrips, annotations, golden, goldenShapes, goldenChunks, goldenSpec, negatives, padding, readingRules, gaps]
       , dataCborTests
       , valueFlatTests
+      , machineTests
       , names
       ]
 
@@ -258,9 +260,9 @@ padding =
     ]
 
 -- How numbers written with extra zero groups are read, matched to
--- plutus-core's decoders at 1.70.0.0. Indices and constr tags take at most
--- ten groups, as its Word64 reader does. Versions and integer constants are
--- unbounded naturals there, so any padding is accepted.
+-- plutus-core's decoders at 1.70.0.0. Indices and constr tags take at most ten
+-- groups, as plutus-core's Word64 reader does. Versions and integer
+-- constants are unbounded naturals there, so any padding is accepted.
 readingRules :: TestTree
 readingRules =
   testGroup

@@ -39,9 +39,10 @@ plutus-core does, and the flat codec uses it for `data` constants.
 nested maps as plutus-core's is, and the flat codec reads and writes `value`
 constants with plutus-core's refusals.
 
-The CEK machine, cost metering, the builtins and version gating follow in
-later releases, roughly in that order, since each one needs the ones before
-it.
+`Cardano.UPLC.Machine` is the CEK machine. It runs every term except
+builtins, `constr` and `case`, which it refuses with `NotSupported`, and it has
+no execution budget. The builtins, `constr` and `case`, cost metering and
+version gating follow in later releases.
 
 ## Correctness
 

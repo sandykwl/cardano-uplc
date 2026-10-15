@@ -25,5 +25,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   codec support that refuses what plutus-core refuses: a key over 32 bytes, a
   quantity of zero or outside 128 bits, an empty token list, and keys out of
   order; the package now depends on `containers`
+- `Cardano.UPLC.Machine`, the CEK machine for every term but builtins,
+  `constr` and `case`: `var`, `lam`, `apply`, `delay`, `force`, constants and
+  `error`
 - `Cardano.UPLC.Flat`, the flat codec, including `data` constants; the
   encoder cannot fail
