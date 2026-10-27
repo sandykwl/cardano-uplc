@@ -1,4 +1,5 @@
-{- Tests for the flat codec.
+{- The test suite. The flat codec's tests are here. The other groups, from Data
+as CBOR to the conformance cases, are in the modules that main lists.
 
 Round trips check that the encoder and decoder agree with each other. The
 golden test checks that they agree with the reference, on a small program
@@ -29,6 +30,7 @@ import Cardano.UPLC.Name (DeBruijn (DeBruijn), Name (Name), Unique (Unique))
 import Cardano.UPLC.Term (Program (Program), Term (..), Version (Version))
 import Cardano.UPLC.Test.Gen (Encodable (Encodable), Nested (Nested))
 import Cardano.UPLC.Ty (Ty (..))
+import Builtins.Integer (integerTests)
 import DataCbor (dataCborTests)
 import Machine (machineTests)
 import ValueFlat (valueFlatTests)
@@ -43,6 +45,7 @@ main =
       , valueFlatTests
       , machineTests
       , names
+      , integerTests
       ]
 
 -- Position in the declaration is the wire tag, so a dropped or reordered
@@ -238,8 +241,9 @@ negatives =
         decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x88, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x00, 0x21])
           @?= Left (WordOverflow 28)
     , -- var/free: index 1 with no enclosing lambda decodes, because scope
-      -- checking is a later pass. Upstream files it under evaluation
-      -- failure.
+      -- checking is a later pass. Upstream's conformance runner refuses it
+      -- when it turns the program back into names, and expects a decode
+      -- error.
       testCase "a free variable decodes" $
         decodeProgram (BS.pack [0x01, 0x00, 0x00, 0x00, 0x11])
           @?= Right (Program () (Version 1 0 0) (Var () (DeBruijn 1)))

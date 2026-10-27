@@ -7,26 +7,40 @@ in 'compute', pushing frames, and hands each value it reaches to the frame on
 top in 'returnValue'. One case per rule, so the code reads beside the
 specification's.
 
-This release runs @var@, @lam@, @apply@, @delay@, @force@, constants and
-@error@. Builtins, @constr@ and @case@ are refused with 'NotSupported' until
-the releases that bring them. There is no execution budget: a term that never
-finishes keeps the machine running.
+This release runs @var@, @lam@, @apply@, @delay@, @force@, constants, @error@
+and @builtin@, for the integer builtins and @ifThenElse@. @constr@ and
+@case@, and the builtins of later releases, are refused with 'NotSupported'.
+There is no execution budget: a term that never finishes keeps the machine
+running.
 
 @since 0.1.0
 -}
 module Cardano.UPLC.Machine (
   evaluate,
+  evaluateWith,
+  SemanticsVariant (..),
   EvalError (..),
 ) where
 
 import Data.Word (Word64)
-import Cardano.UPLC.Constant (Constant)
+import Cardano.UPLC.Builtin (DefaultFun)
+import Cardano.UPLC.Machine.Builtins (
+  BuiltinError (..),
+  SemanticsVariant (..),
+  arity,
+  forceCount,
+  runBuiltin,
+ )
+import Cardano.UPLC.Machine.CekValue (CekValue (..), Env, discharge, lookupVar)
 import Cardano.UPLC.Name (DeBruijn (DeBruijn))
 import Cardano.UPLC.Term (Term (..))
 
-{- | Why evaluation stopped without a value. On chain the first four are the
-same failure, and the names are for the person reading the error.
+{- | Why evaluation stopped without a value. On chain all but 'NotSupported'
+are the same failure, and the names are for the person reading the error.
 'NotSupported' is different: it marks what this release does not run yet.
+
+Apart from 'NotSupported', where an error carries a term it is the term
+plutus-core reports as the cause.
 
 @since 0.1.0
 -}
@@ -48,8 +62,31 @@ data EvalError
     --
     -- @since 0.1.0
     NotDelayed !(Term DeBruijn ())
-  | -- | A builtin, @constr@ or @case@, which this release does not run yet.
-    -- It is reported before any part of the term runs.
+  | -- | A builtin that still expects an argument was forced. The term is the
+    -- builtin as it was, with the @force@ around it.
+    --
+    -- @since 0.1.0
+    BuiltinNeedsArgument !(Term DeBruijn ())
+  | -- | A builtin that still expects a force was applied to an argument. The
+    -- term is the builtin as it was, applied to the argument.
+    --
+    -- @since 0.1.0
+    BuiltinNeedsForce !(Term DeBruijn ())
+  | -- | The last argument of a builtin arrived and one of the arguments was
+    -- not a constant, or not a constant of the type the builtin takes. The
+    -- term is the whole application.
+    --
+    -- @since 0.1.0
+    BuiltinArgumentType !(Term DeBruijn ())
+  | -- | The last argument of a builtin arrived and the builtin failed: an
+    -- argument was out of range for it, or it refused its arguments. The term
+    -- is the whole application.
+    --
+    -- @since 0.1.0
+    BuiltinFailure !(Term DeBruijn ())
+  | -- | @constr@, @case@, or a builtin this release does not run yet.
+    -- Evaluation stops when the machine reaches one; what runs before that
+    -- has run. For a builtin the term is the saturated application.
     --
     -- @since 0.1.0
     NotSupported !(Term DeBruijn ())
@@ -60,90 +97,84 @@ data EvalError
       Show
     )
 
--- A lambda holds its body and the environment it was made in; the binder
--- itself holds nothing, since variables count their way to it.
-data Value
-  = VCon !Constant
-  | VDelay !(Term DeBruijn ()) !Env
-  | VLamAbs !(Term DeBruijn ()) !Env
-
--- The innermost binder's value first, so variable 1 is the head. plutus-core
--- uses a skew-binary random-access list, for faster lookup of deep variables.
--- That changes no result, so a plain list will do until a benchmark says the
--- lookups matter.
-type Env = [Value]
-
 -- The stack is a list of frames. plutus-core links each frame to the rest of
--- the stack instead, which is faster to match on but holds the same frames.
+-- the stack instead; the frames are the same.
 data Frame
   = -- (force _): force the value about to arrive.
     FrameForce
   | -- [_ (M, ρ)]: the function is being computed; the argument M waits.
     FrameAwaitFunTerm !Env !(Term DeBruijn ())
   | -- [V _]: the function is V; the argument is being computed.
-    FrameAwaitArg !Value
+    FrameAwaitArg !CekValue
 
-{- | Evaluate a term. Annotations are dropped, so the result carries @()@. The
-result is the value the term reduces to, turned back into a term, with the
+{- | Evaluate a term under the semantics of 'VariantE', the one the
+conformance suite runs. Annotations are dropped, so the result carries @()@.
+The result is the value the term reduces to, turned back into a term, with the
 variables its closures captured replaced by what they were bound to.
 
 @since 0.1.0
 -}
 evaluate :: Term DeBruijn ann -> Either EvalError (Term DeBruijn ())
-evaluate = compute [] [] . fmap (const ())
+evaluate = evaluateWith VariantE
 
-compute :: [Frame] -> Env -> Term DeBruijn () -> Either EvalError (Term DeBruijn ())
-compute stack env term = case term of
-  Var _ (DeBruijn i) -> maybe (Left (FreeVariable i)) (returnValue stack) (lookupVar i env)
-  Constant _ c -> returnValue stack (VCon c)
-  LamAbs _ _ body -> returnValue stack (VLamAbs body env)
-  Delay _ body -> returnValue stack (VDelay body env)
-  Force _ body -> compute (FrameForce : stack) env body
-  Apply _ f x -> compute (FrameAwaitFunTerm env x : stack) env f
+{- | Evaluate a term under the given builtin semantics. Only builtins can tell
+the variants apart.
+
+@since 0.1.0
+-}
+evaluateWith :: SemanticsVariant -> Term DeBruijn ann -> Either EvalError (Term DeBruijn ())
+evaluateWith var = compute var [] [] . fmap (const ())
+
+compute ::
+  SemanticsVariant -> [Frame] -> Env -> Term DeBruijn () -> Either EvalError (Term DeBruijn ())
+compute var stack env term = case term of
+  Var _ (DeBruijn i) -> maybe (Left (FreeVariable i)) (returnValue var stack) (lookupVar i env)
+  Constant _ c -> returnValue var stack (VCon c)
+  LamAbs _ _ body -> returnValue var stack (VLamAbs body env)
+  Delay _ body -> returnValue var stack (VDelay body env)
+  Force _ body -> compute var (FrameForce : stack) env body
+  Apply _ f x -> compute var (FrameAwaitFunTerm env x : stack) env f
+  Builtin _ f -> returnValue var stack (VBuiltin f 0 [])
   Error _ -> Left ErrorTerm
   t -> Left (NotSupported t)
 
-returnValue :: [Frame] -> Value -> Either EvalError (Term DeBruijn ())
-returnValue stack v = case stack of
+returnValue ::
+  SemanticsVariant -> [Frame] -> CekValue -> Either EvalError (Term DeBruijn ())
+returnValue var stack v = case stack of
   [] -> Right (discharge v)
   FrameForce : rest -> case v of
-    VDelay body env -> compute rest env body
+    VDelay body env -> compute var rest env body
+    VBuiltin f forces args
+      | forces < forceCount f -> builtinStep var rest f (forces + 1) args
+      | otherwise -> Left (BuiltinNeedsArgument (Force () (discharge v)))
     _ -> Left (NotDelayed (discharge v))
-  FrameAwaitFunTerm env x : rest -> compute (FrameAwaitArg v : rest) env x
+  FrameAwaitFunTerm env x : rest -> compute var (FrameAwaitArg v : rest) env x
   FrameAwaitArg f : rest -> case f of
-    VLamAbs body env -> compute rest (v : env) body
+    VLamAbs body env -> compute var rest (v : env) body
+    VBuiltin g forces args
+      | forces == forceCount g -> builtinStep var rest g forces (v : args)
+      | otherwise -> Left (BuiltinNeedsForce (Apply () (discharge f) (discharge v)))
     _ -> Left (NotAFunction (discharge f))
 
--- Variables count from 1; index 0 never names anything.
-lookupVar :: Word64 -> Env -> Maybe Value
-lookupVar 0 _ = Nothing
-lookupVar 1 (v : _) = Just v
-lookupVar i (_ : rest) = lookupVar (i - 1) rest
-lookupVar _ [] = Nothing
-
-discharge :: Value -> Term DeBruijn ()
-discharge = \case
-  VCon c -> Constant () c
-  VDelay body env -> Delay () (substitute env 0 body)
-  VLamAbs body env -> LamAbs () (DeBruijn 0) (substitute env 1 body)
-
--- Replace each variable the environment binds with its value, discharged.
--- `depth` counts the lambdas between here and the environment: a variable at
--- or below it is bound inside the term and stays. A variable the environment
--- does not have stays as it is, which only an open term can produce.
-substitute :: Env -> Word64 -> Term DeBruijn () -> Term DeBruijn ()
-substitute env = go
+-- A builtin has taken one more force or argument. If it now has them all it
+-- runs, and otherwise it is a value.
+builtinStep ::
+  SemanticsVariant ->
+  [Frame] ->
+  DefaultFun ->
+  Int ->
+  [CekValue] ->
+  Either EvalError (Term DeBruijn ())
+builtinStep var stack f forces args
+  | forces == forceCount f && length args == arity f =
+      case runBuiltin var f (reverse args) of
+        -- Forced here, so a builtin does its work when it runs, not when
+        -- something reads the result.
+        Right !result -> returnValue var stack result
+        Left ArgumentType -> Left (BuiltinArgumentType application)
+        Left Failed -> Left (BuiltinFailure application)
+        Left Unsupported -> Left (NotSupported application)
+  | otherwise = returnValue var stack partial
   where
-    go depth = \case
-      v@(Var _ (DeBruijn i))
-        | i <= depth -> v
-        | otherwise -> maybe v discharge (lookupVar (i - depth) env)
-      LamAbs a b body -> LamAbs a b (go (depth + 1) body)
-      Apply a f x -> Apply a (go depth f) (go depth x)
-      Delay a body -> Delay a (go depth body)
-      Force a body -> Force a (go depth body)
-      Constr a i fields -> Constr a i (map (go depth) fields)
-      Case a s branches -> Case a (go depth s) (fmap (go depth) branches)
-      t@Constant {} -> t
-      t@Builtin {} -> t
-      t@Error {} -> t
+    partial = VBuiltin f forces args
+    application = discharge partial

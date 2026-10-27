@@ -6,10 +6,11 @@ description:
   A Haskell implementation of Untyped Plutus Core, the language that every
   Cardano smart contract compiles to. This package provides the abstract
   syntax, the flat binary codec scripts are stored in on chain, and a CEK
-  machine that runs the core terms; builtins and the cost model follow in
-  later releases. Where the Plutus specification and plutus-core differ, the
-  package follows plutus-core, the implementation the network runs. It is to
-  be validated by the official conformance suite.
+  machine that runs the core terms and the integer builtins; the other
+  builtins and the cost model follow in later releases.
+  Where the Plutus specification and plutus-core differ, the package follows
+  plutus-core, which the network runs. It is to be validated by the official
+  conformance suite.
 
 license:         MIT
 license-file:    LICENSE
@@ -61,11 +62,17 @@ library
 
   -- The codec's bit layer and error types. Cardano.UPLC.Flat re-exports the
   -- errors, and nothing outside the package needs the bit layer. The CBOR
-  -- internals hold the reader the flat codec uses for data constants.
+  -- internals hold the reader the flat codec uses for data constants. The
+  -- machine's values and builtins have no use outside Cardano.UPLC.Machine,
+  -- which re-exports the semantics variants.
   other-modules:
     Cardano.UPLC.Data.Cbor.Internal
     Cardano.UPLC.Flat.Bits
     Cardano.UPLC.Flat.Error
+    Cardano.UPLC.Machine.Builtins
+    Cardano.UPLC.Machine.Builtins.Error
+    Cardano.UPLC.Machine.Builtins.Integer
+    Cardano.UPLC.Machine.CekValue
 
   build-depends:
       , bytestring   >=0.11   && <0.13
@@ -81,6 +88,7 @@ test-suite tests
   main-is:        Test.hs
   hs-source-dirs: test
   other-modules:
+    Builtins.Integer
     Cardano.UPLC.Test.Gen
     DataCbor
     Machine
