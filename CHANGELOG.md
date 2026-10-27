@@ -33,3 +33,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   five semantics variants; `evaluate` runs the latest
 - The integer builtins, from `addInteger` to `expModInteger`, and
   `ifThenElse`
+- The bytestring builtins, from `appendByteString` to `byteStringToInteger`,
+  and the bitwise ones, from `andByteString` to `findFirstSetBit`

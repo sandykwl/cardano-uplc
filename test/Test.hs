@@ -30,6 +30,8 @@ import Cardano.UPLC.Name (DeBruijn (DeBruijn), Name (Name), Unique (Unique))
 import Cardano.UPLC.Term (Program (Program), Term (..), Version (Version))
 import Cardano.UPLC.Test.Gen (Encodable (Encodable), Nested (Nested))
 import Cardano.UPLC.Ty (Ty (..))
+import Builtins.Bitwise (bitwiseTests)
+import Builtins.ByteString (byteStringTests)
 import Builtins.Integer (integerTests)
 import DataCbor (dataCborTests)
 import Machine (machineTests)
@@ -46,6 +48,8 @@ main =
       , machineTests
       , names
       , integerTests
+      , byteStringTests
+      , bitwiseTests
       ]
 
 -- Position in the declaration is the wire tag, so a dropped or reordered

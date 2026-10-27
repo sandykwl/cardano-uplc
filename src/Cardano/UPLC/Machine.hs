@@ -8,10 +8,10 @@ top in 'returnValue'. One case per rule, so the code reads beside the
 specification's.
 
 This release runs @var@, @lam@, @apply@, @delay@, @force@, constants, @error@
-and @builtin@, for the integer builtins and @ifThenElse@. @constr@ and
-@case@, and the builtins of later releases, are refused with 'NotSupported'.
-There is no execution budget: a term that never finishes keeps the machine
-running.
+and @builtin@, for the integer, bytestring and bitwise builtins and
+@ifThenElse@. @constr@ and @case@, and the builtins of later releases, are
+refused with 'NotSupported'. There is no execution budget: a term that never
+finishes keeps the machine running.
 
 @since 0.1.0
 -}

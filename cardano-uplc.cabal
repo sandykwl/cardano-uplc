@@ -6,8 +6,8 @@ description:
   A Haskell implementation of Untyped Plutus Core, the language that every
   Cardano smart contract compiles to. This package provides the abstract
   syntax, the flat binary codec scripts are stored in on chain, and a CEK
-  machine that runs the core terms and the integer builtins; the other
-  builtins and the cost model follow in later releases.
+  machine that runs the core terms and the integer, bytestring and bitwise
+  builtins; the other builtins and the cost model follow in later releases.
   Where the Plutus specification and plutus-core differ, the package follows
   plutus-core, which the network runs. It is to be validated by the official
   conformance suite.
@@ -70,6 +70,8 @@ library
     Cardano.UPLC.Flat.Bits
     Cardano.UPLC.Flat.Error
     Cardano.UPLC.Machine.Builtins
+    Cardano.UPLC.Machine.Builtins.Bitwise
+    Cardano.UPLC.Machine.Builtins.ByteString
     Cardano.UPLC.Machine.Builtins.Error
     Cardano.UPLC.Machine.Builtins.Integer
     Cardano.UPLC.Machine.CekValue
@@ -88,6 +90,8 @@ test-suite tests
   main-is:        Test.hs
   hs-source-dirs: test
   other-modules:
+    Builtins.Bitwise
+    Builtins.ByteString
     Builtins.Integer
     Cardano.UPLC.Test.Gen
     DataCbor

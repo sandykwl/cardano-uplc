@@ -13,6 +13,7 @@ import Cardano.UPLC.Constant (Constant (..))
 import Cardano.UPLC.Machine (EvalError (..), SemanticsVariant (..), evaluate, evaluateWith)
 import Cardano.UPLC.Name (DeBruijn (DeBruijn))
 import Cardano.UPLC.Term (Term (..))
+import Cardano.UPLC.Ty (Ty (TyInteger))
 
 machineTests :: TestTree
 machineTests = testGroup "Machine" [rules, discharging, failures, builtinRules, builtinErrors, ifThenElse, variants]
@@ -127,6 +128,19 @@ unit = Constant () CUnit
 bytes :: Int -> T
 bytes n = Constant () (CByteString (BS.replicate n 7))
 
+consByte :: Integer -> T
+consByte n = call ConsByteString [int n, bytes 0]
+
+-- writeBits on a bytestring of the given length, with no indices to set.
+writeBits :: Int -> T
+writeBits n = call WriteBits [bytes n, Constant () (CList TyInteger []), bool True]
+
+shift :: Integer -> T
+shift k = call ShiftByteString [bytes 1, int k]
+
+slice :: Integer -> T
+slice start = call SliceByteString [int start, int 1, bytes 1]
+
 -- The smallest positive integer the bounded variants refuse.
 bound :: Integer
 bound = 2 ^ (262143 :: Int)
@@ -240,5 +254,38 @@ variants =
     , testCase "equalsInteger takes any integer in every variant" $
         mapM_
           (\v -> evaluateWith v (call EqualsInteger [int bound, int bound]) @?= Right (bool True))
+          [minBound .. maxBound]
+    , testCase "a bytestring of 65536 bytes is accepted in D and E, one more is not" $
+        mapM_
+          (\v -> do
+              evaluateWith v (call AppendByteString [bytes 65536, bytes 0]) @?= Right (bytes 65536)
+              evaluateWith v (call AppendByteString [bytes 65537, bytes 0])
+                @?= Left (BuiltinFailure (call AppendByteString [bytes 65537, bytes 0])))
+          [VariantD, VariantE]
+    , testCase "A, B and C accept it" $
+        mapM_
+          (\v -> evaluateWith v (call AppendByteString [bytes 65537, bytes 0]) @?= Right (bytes 65537))
+          [VariantA, VariantB, VariantC]
+    , testCase "consByteString refuses a first argument past 255 in C and E, and wraps it in A, B and D" $ do
+        mapM_ (\v -> evaluateWith v (consByte 256) @?= Left (BuiltinFailure (consByte 256))) [VariantC, VariantE]
+        mapM_ (\v -> evaluateWith v (consByte 256) @?= Right (Constant () (CByteString (BS.pack [0])))) [VariantA, VariantB, VariantD]
+    , testCase "writeBits refuses more than 4096 bytes in D and E" $ do
+        mapM_ (\v -> evaluateWith v (writeBits 4096) @?= Right (bytes 4096)) [minBound .. maxBound]
+        mapM_ (\v -> evaluateWith v (writeBits 4097) @?= Left (BuiltinFailure (writeBits 4097))) [VariantD, VariantE]
+        mapM_ (\v -> evaluateWith v (writeBits 4097) @?= Right (bytes 4097)) [VariantA, VariantB, VariantC]
+    , testCase "a shift amount is an Int64 in D and E, and any integer before" $ do
+        let top = 2 ^ (63 :: Int) :: Integer
+        evaluateWith VariantE (shift (top - 1)) @?= Right (Constant () (CByteString (BS.singleton 0)))
+        evaluateWith VariantE (shift top) @?= Left (BuiltinFailure (shift top))
+        evaluateWith VariantD (shift (negate top)) @?= Right (Constant () (CByteString (BS.singleton 0)))
+        evaluateWith VariantD (shift (negate top - 1)) @?= Left (BuiltinFailure (shift (negate top - 1)))
+        evaluateWith VariantC (shift top) @?= Right (Constant () (CByteString (BS.singleton 0)))
+    , testCase "an index past Int64 fails in every variant, the last Int64 does not" $ do
+        let top = 2 ^ (63 :: Int) :: Integer
+        mapM_ (\v -> evaluateWith v (slice (top - 1)) @?= Right (Constant () (CByteString BS.empty))) [minBound .. maxBound]
+        mapM_ (\v -> evaluateWith v (slice top) @?= Left (BuiltinFailure (slice top))) [minBound .. maxBound]
+    , testCase "lengthOfByteString has no bound" $
+        mapM_
+          (\v -> evaluateWith v (call LengthOfByteString [bytes 65537]) @?= Right (int 65537))
           [minBound .. maxBound]
     ]

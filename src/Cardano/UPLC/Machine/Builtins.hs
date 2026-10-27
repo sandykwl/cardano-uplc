@@ -18,11 +18,18 @@ module Cardano.UPLC.Machine.Builtins (
   runBuiltin,
 ) where
 
+import Data.ByteString (ByteString)
+import Data.ByteString qualified as BS
+import Data.Int (Int64)
+import Data.Word (Word8)
 import Cardano.UPLC.Builtin (DefaultFun (..))
 import Cardano.UPLC.Constant (Constant (..))
+import Cardano.UPLC.Machine.Builtins.Bitwise qualified as W
+import Cardano.UPLC.Machine.Builtins.ByteString qualified as B
 import Cardano.UPLC.Machine.Builtins.Error (BuiltinError (..))
 import Cardano.UPLC.Machine.Builtins.Integer qualified as I
 import Cardano.UPLC.Machine.CekValue (CekValue (..))
+import Cardano.UPLC.Ty (Ty (TyInteger))
 
 {- | Which builtin semantics to run. The ledger picks one from the ledger
 language and the protocol version, and this package leaves that choice to the
@@ -31,8 +38,10 @@ the Chang hard fork, B until van Rossem and D from then on. Plutus V3 scripts
 get C, then E from van Rossem.
 
 A and B behave the same and differ only in cost, which this package does not
-count. D and E bound most integer arguments. E is the one the conformance
-suite runs.
+count. C and E make @consByteString@ refuse a first argument outside 0 to 255.
+D and E bound most integer and bytestring arguments, the amount of a shift or
+rotation, and the length @writeBits@ takes (4096 bytes). E is the one the
+conformance suite runs.
 
 @since 0.1.0
 -}
@@ -205,6 +214,74 @@ runBuiltin var f args = case (f, args) of
     expo <- integer e
     modulus <- integer m
     con CInteger (I.expModInteger base expo modulus)
+  (AppendByteString, [x, y]) -> do
+    a <- boundedByteString x
+    b <- boundedByteString y
+    con CByteString (B.appendByteString a b)
+  (ConsByteString, [n, s]) -> do
+    w <- consByte n
+    b <- boundedByteString s
+    con CByteString (B.consByteString w b)
+  (SliceByteString, [s, k, b]) -> do
+    start <- int64 s
+    len <- int64 k
+    bytes <- boundedByteString b
+    con CByteString (B.sliceByteString start len bytes)
+  (LengthOfByteString, [b]) -> do
+    bytes <- byteString b
+    con CInteger (B.lengthOfByteString bytes)
+  (IndexByteString, [b, i]) -> do
+    bytes <- boundedByteString b
+    ix <- int64 i
+    con (CInteger . toInteger) (B.indexByteString bytes ix)
+  (EqualsByteString, [x, y]) -> byteStringCmp B.equalsByteString x y
+  (LessThanByteString, [x, y]) -> byteStringCmp B.lessThanByteString x y
+  (LessThanEqualsByteString, [x, y]) -> byteStringCmp B.lessThanEqualsByteString x y
+  (IntegerToByteString, [e, w, n]) -> do
+    big <- bool e
+    width <- integer w
+    input <- integer n
+    con CByteString (B.integerToByteString big width input)
+  (ByteStringToInteger, [e, b]) -> do
+    big <- bool e
+    bytes <- boundedByteString b
+    con CInteger (B.byteStringToInteger big bytes)
+  (AndByteString, [p, x, y]) -> logical W.andByteString p x y
+  (OrByteString, [p, x, y]) -> logical W.orByteString p x y
+  (XorByteString, [p, x, y]) -> logical W.xorByteString p x y
+  (ComplementByteString, [x]) -> do
+    bytes <- boundedByteString x
+    con CByteString (W.complementByteString bytes)
+  (ReadBit, [b, i]) -> do
+    bytes <- boundedByteString b
+    ix <- int64 i
+    con CBool (W.readBit bytes ix)
+  (WriteBits, [b, is, u]) -> do
+    bytes <- byteString b
+    ixs <- integerList is
+    value <- bool u
+    -- Checked after unlifting, as plutus-core's denotation does.
+    if limited && BS.length bytes > 4096
+      then Left Failed
+      else con CByteString (W.writeBits bytes ixs value)
+  (ReplicateByte, [n, b]) -> do
+    len <- integer n
+    byte <- word8 b
+    con CByteString (W.replicateByte len byte)
+  (ShiftByteString, [b, k]) -> do
+    bytes <- byteString b
+    amount <- shiftAmount k
+    con CByteString (W.shiftByteString bytes amount)
+  (RotateByteString, [b, k]) -> do
+    bytes <- byteString b
+    amount <- shiftAmount k
+    con CByteString (W.rotateByteString bytes amount)
+  (CountSetBits, [x]) -> do
+    bytes <- boundedByteString x
+    con CInteger (W.countSetBits bytes)
+  (FindFirstSetBit, [x]) -> do
+    bytes <- boundedByteString x
+    con CInteger (W.findFirstSetBit bytes)
   -- The branches are passed through unchecked and unchanged.
   (IfThenElse, [c, t, e]) -> do
     cond <- bool c
@@ -218,13 +295,40 @@ runBuiltin var f args = case (f, args) of
       b <- boundedInteger y
       con CInteger (op a b)
 
+    byteStringCmp op x y = do
+      a <- boundedByteString x
+      b <- boundedByteString y
+      con CBool (op a b)
+
+    logical op p x y = do
+      padded <- bool p
+      a <- boundedByteString x
+      b <- boundedByteString y
+      con CByteString (op padded a b)
+
     boundedInteger v = integer v >>= \n ->
       if limited && not (integerInBounds n)
         then Left Failed
         else Right n
 
--- D and E bound the integer arguments builtins read. Every variant is listed,
--- unlike plutus-core's wildcard, so a new one has to be placed by hand.
+    boundedByteString v = byteString v >>= \s ->
+      if limited && not (byteStringInBounds s)
+        then Left Failed
+        else Right s
+
+    -- A, B and D keep the low eight bits of the integer (D first refuses one
+    -- outside its integer bound). C and E take a byte, and refuse the rest.
+    consByte v
+      | consTakesByte var = word8 v
+      | otherwise = (\n -> fromInteger (n `mod` 256)) <$> boundedInteger v
+
+    shiftAmount v
+      | limited = toInteger <$> int64 v
+      | otherwise = integer v
+
+-- D and E bound the integer and bytestring arguments builtins read, and make
+-- a shift or rotation amount fit in 64 bits. Every variant is listed, unlike
+-- plutus-core's wildcard, so a new one has to be placed by hand.
 bounded :: SemanticsVariant -> Bool
 bounded = \case
   VariantA -> False
@@ -233,15 +337,27 @@ bounded = \case
   VariantD -> True
   VariantE -> True
 
--- The D and E bound: integers from -(2^262143) to 2^262143 - 1 (plutus-core's
--- Cardano.hs). Kept at the top level and not inlined, as there, so the big
--- number is built once.
+consTakesByte :: SemanticsVariant -> Bool
+consTakesByte = \case
+  VariantA -> False
+  VariantB -> False
+  VariantC -> True
+  VariantD -> False
+  VariantE -> True
+
+-- The D and E bounds: integers from -(2^262143) to 2^262143 - 1, bytestrings
+-- up to 65536 bytes (plutus-core's Cardano.hs). The integer bound is kept at
+-- the top level and not inlined, as in plutus-core, so the big number is built
+-- once.
 integerBound :: Integer
 integerBound = 2 ^ (262143 :: Int)
 {-# NOINLINE integerBound #-}
 
 integerInBounds :: Integer -> Bool
 integerInBounds n = n >= negate integerBound && n < integerBound
+
+byteStringInBounds :: ByteString -> Bool
+byteStringInBounds s = BS.length s <= 65536
 
 -- Unlifting. A value that is not a constant, and a constant of another type,
 -- are the same failure.
@@ -255,10 +371,37 @@ integer v = constant v >>= \case
   CInteger n -> Right n
   _ -> Left ArgumentType
 
+byteString :: CekValue -> Either BuiltinError ByteString
+byteString v = constant v >>= \case
+  CByteString s -> Right s
+  _ -> Left ArgumentType
+
 bool :: CekValue -> Either BuiltinError Bool
 bool v = constant v >>= \case
   CBool b -> Right b
   _ -> Left ArgumentType
+
+integerList :: CekValue -> Either BuiltinError [Integer]
+integerList v = constant v >>= \case
+  CList TyInteger xs -> traverse element xs
+  _ -> Left ArgumentType
+  where
+    element = \case
+      CInteger n -> Right n
+      _ -> Left ArgumentType
+
+-- The range is checked before the conversion, so nothing wraps.
+int64 :: CekValue -> Either BuiltinError Int64
+int64 v = integer v >>= \n ->
+  if n >= toInteger (minBound :: Int64) && n <= toInteger (maxBound :: Int64)
+    then Right (fromInteger n)
+    else Left Failed
+
+word8 :: CekValue -> Either BuiltinError Word8
+word8 v = integer v >>= \n ->
+  if n >= 0 && n <= 255
+    then Right (fromInteger n)
+    else Left Failed
 
 -- A denotation's result becomes a constant; its failure passes through.
 con :: (r -> Constant) -> Either BuiltinError r -> Either BuiltinError CekValue

@@ -41,9 +41,11 @@ nested maps as plutus-core's is, and the flat codec reads and writes `value`
 constants with plutus-core's refusals.
 
 `Cardano.UPLC.Machine` is the CEK machine. It runs every term except
-builtins, `constr` and `case`, which it refuses with `NotSupported`, and it has
-no execution budget. The builtins, `constr` and `case`, cost metering and
-version gating follow in later releases.
+`constr` and `case`, and of the builtins it runs the integer, bytestring and
+bitwise ones and `ifThenElse`, under any of plutus-core's five semantics
+variants. Anything else it refuses with `NotSupported`. It has no execution
+budget. The other builtins, `constr` and `case`, cost metering and version
+gating follow in later releases.
 
 ## Correctness
 
