@@ -35,3 +35,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `ifThenElse`
 - The bytestring builtins, from `appendByteString` to `byteStringToInteger`,
   and the bitwise ones, from `andByteString` to `findFirstSetBit`
+- Plutus conformance cases for the builtins the machine runs, in
+  `test/conformance`, with a runner and `scripts/conformance/refresh.py`; they
+  are under the Apache License 2.0, with their own `LICENSE` and `NOTICE`

@@ -33,12 +33,14 @@ import Cardano.UPLC.Ty (Ty (..))
 import Builtins.Bitwise (bitwiseTests)
 import Builtins.ByteString (byteStringTests)
 import Builtins.Integer (integerTests)
+import Conformance (conformanceTests)
 import DataCbor (dataCborTests)
 import Machine (machineTests)
 import ValueFlat (valueFlatTests)
 
 main :: IO ()
-main =
+main = do
+  conformance <- conformanceTests
   defaultMain . adjustOption (max (1_000 :: QuickCheckTests)) $
     testGroup
       "cardano-uplc"
@@ -50,6 +52,7 @@ main =
       , integerTests
       , byteStringTests
       , bitwiseTests
+      , conformance
       ]
 
 -- Position in the declaration is the wire tag, so a dropped or reordered

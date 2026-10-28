@@ -1,0 +1,2 @@
+# The conformance cases are copied byte for byte from upstream.
+test/conformance/** -text

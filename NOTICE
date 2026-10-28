@@ -10,3 +10,7 @@ by the Amaru Maintainers.
 
 plutus-core, part of Plutus (https://github.com/IntersectMBO/plutus)
 Copyright 2024 Intersect MBO
+
+The test suite includes conformance cases copied unchanged from Plutus's
+plutus-conformance package, under test/conformance, with that package's own
+LICENSE and NOTICE.

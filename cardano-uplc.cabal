@@ -7,10 +7,10 @@ description:
   Cardano smart contract compiles to. This package provides the abstract
   syntax, the flat binary codec scripts are stored in on chain, and a CEK
   machine that runs the core terms and the integer, bytestring and bitwise
-  builtins; the other builtins and the cost model follow in later releases.
+  builtins; the other builtins follow in later releases.
   Where the Plutus specification and plutus-core differ, the package follows
-  plutus-core, which the network runs. It is to be validated by the official
-  conformance suite.
+  plutus-core, which the network runs. The tests include the official
+  conformance cases for what the machine implements.
 
 license:         MIT
 license-file:    LICENSE
@@ -22,6 +22,13 @@ extra-doc-files:
   LICENSE-APACHE
   NOTICE
   README.md
+
+extra-source-files:
+  test/conformance/**/*.flat
+  test/conformance/**/*.flat.expected
+  test/conformance/LICENSE
+  test/conformance/NOTICE
+  test/conformance/SOURCE.md
 
 tested-with:     GHC ==9.6.7 || ==9.8.4
 
@@ -94,6 +101,7 @@ test-suite tests
     Builtins.ByteString
     Builtins.Integer
     Cardano.UPLC.Test.Gen
+    Conformance
     DataCbor
     Machine
     ValueFlat
@@ -101,6 +109,8 @@ test-suite tests
     , bytestring
     , cardano-uplc
     , containers
+    , directory
+    , filepath
     , QuickCheck        >=2.14 && <2.16
     , tasty             >=1.5  && <1.6
     , tasty-hunit       >=0.10 && <0.11

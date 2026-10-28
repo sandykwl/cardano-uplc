@@ -43,15 +43,19 @@ constants with plutus-core's refusals.
 `Cardano.UPLC.Machine` is the CEK machine. It runs every term except
 `constr` and `case`, and of the builtins it runs the integer, bytestring and
 bitwise ones and `ifThenElse`, under any of plutus-core's five semantics
-variants. Anything else it refuses with `NotSupported`. It has no execution
-budget. The other builtins, `constr` and `case`, cost metering and version
-gating follow in later releases.
+variants. Anything else it refuses with `NotSupported`. The other builtins,
+`constr` and `case`, and version gating follow in later releases. It has no
+execution budget: costing is outside the package's scope.
 
 ## Correctness
 
 Where `plutus-core` and the Plutus Core specification differ, behaviour
-matches `plutus-core`, the implementation the network runs. Correctness is to
-be measured against the official Plutus Conformance Test Suite.
+matches `plutus-core`, the implementation the network runs. The test suite
+runs the official conformance cases for everything the machine implements.
+
+The test suite includes cases copied from the Plutus repository's conformance
+suite, which is under the Apache License 2.0. They are in `test/conformance`,
+with their `LICENSE` and `NOTICE`; the package itself is MIT.
 
 ## Acknowledgements
 
