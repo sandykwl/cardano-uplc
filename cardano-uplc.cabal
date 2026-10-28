@@ -1,14 +1,16 @@
 cabal-version:   3.0
 name:            cardano-uplc
 version:         0.1.0
-synopsis:        Untyped Plutus Core syntax and binary codec
+synopsis:        Untyped Plutus Core syntax, flat codec and CEK evaluator
 description:
   A Haskell implementation of Untyped Plutus Core, the language that every
   Cardano smart contract compiles to. This package provides the abstract
-  syntax and the flat binary codec scripts are stored in on chain;
-  evaluation and the cost model follow in later releases. Semantics are
-  those of the Plutus specification, against which the implementation is to
-  be validated by the official conformance suite.
+  syntax, the flat binary codec scripts are stored in on chain, and a CEK
+  machine that runs the core terms and the integer, bytestring and bitwise
+  builtins; the other builtins follow in later releases.
+  Where the Plutus specification and plutus-core differ, the package follows
+  plutus-core, which the network runs. The tests include the official
+  conformance cases for what the machine implements.
 
 license:         MIT
 license-file:    LICENSE
@@ -17,7 +19,16 @@ maintainer:      sandykwl <lambdac.dev01@gmail.com>
 category:        Language
 extra-doc-files:
   CHANGELOG.md
+  LICENSE-APACHE
+  NOTICE
   README.md
+
+extra-source-files:
+  test/conformance/**/*.flat
+  test/conformance/**/*.flat.expected
+  test/conformance/LICENSE
+  test/conformance/NOTICE
+  test/conformance/SOURCE.md
 
 tested-with:     GHC ==9.6.7 || ==9.8.4
 
@@ -50,6 +61,7 @@ library
     Cardano.UPLC.Data
     Cardano.UPLC.Data.Cbor
     Cardano.UPLC.Flat
+    Cardano.UPLC.Machine
     Cardano.UPLC.Name
     Cardano.UPLC.Term
     Cardano.UPLC.Ty
@@ -57,11 +69,19 @@ library
 
   -- The codec's bit layer and error types. Cardano.UPLC.Flat re-exports the
   -- errors, and nothing outside the package needs the bit layer. The CBOR
-  -- internals hold the reader the flat codec uses for data constants.
+  -- internals hold the reader the flat codec uses for data constants. The
+  -- machine's values and builtins have no use outside Cardano.UPLC.Machine,
+  -- which re-exports the semantics variants.
   other-modules:
     Cardano.UPLC.Data.Cbor.Internal
     Cardano.UPLC.Flat.Bits
     Cardano.UPLC.Flat.Error
+    Cardano.UPLC.Machine.Builtins
+    Cardano.UPLC.Machine.Builtins.Bitwise
+    Cardano.UPLC.Machine.Builtins.ByteString
+    Cardano.UPLC.Machine.Builtins.Error
+    Cardano.UPLC.Machine.Builtins.Integer
+    Cardano.UPLC.Machine.CekValue
 
   build-depends:
       , bytestring   >=0.11   && <0.13
@@ -77,13 +97,20 @@ test-suite tests
   main-is:        Test.hs
   hs-source-dirs: test
   other-modules:
+    Builtins.Bitwise
+    Builtins.ByteString
+    Builtins.Integer
     Cardano.UPLC.Test.Gen
+    Conformance
     DataCbor
+    Machine
     ValueFlat
   build-depends:
     , bytestring
     , cardano-uplc
     , containers
+    , directory
+    , filepath
     , QuickCheck        >=2.14 && <2.16
     , tasty             >=1.5  && <1.6
     , tasty-hunit       >=0.10 && <0.11

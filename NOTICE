@@ -1,0 +1,16 @@
+cardano-uplc
+Copyright (c) 2026 sandykwl
+
+This package is licensed under the MIT licence, in LICENSE. It was written
+with reference to the following projects, which are licensed under the
+Apache License, Version 2.0, a copy of which is in LICENSE-APACHE.
+
+amaru-uplc, part of Amaru (https://github.com/pragma-org/amaru)
+by the Amaru Maintainers.
+
+plutus-core, part of Plutus (https://github.com/IntersectMBO/plutus)
+Copyright 2024 Intersect MBO
+
+The test suite includes conformance cases copied unchanged from Plutus's
+plutus-conformance package, under test/conformance, with that package's own
+LICENSE and NOTICE.

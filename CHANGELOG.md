@@ -25,5 +25,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   codec support that refuses what plutus-core refuses: a key over 32 bytes, a
   quantity of zero or outside 128 bits, an empty token list, and keys out of
   order; the package now depends on `containers`
+- `Cardano.UPLC.Machine`, the CEK machine for every term but `constr` and
+  `case`
 - `Cardano.UPLC.Flat`, the flat codec, including `data` constants; the
   encoder cannot fail
+- `SemanticsVariant` and `evaluateWith`, to run the builtins under any of the
+  five semantics variants; `evaluate` runs the latest
+- The integer builtins, from `addInteger` to `expModInteger`, and
+  `ifThenElse`
+- The bytestring builtins, from `appendByteString` to `byteStringToInteger`,
+  and the bitwise ones, from `andByteString` to `findFirstSetBit`
+- Plutus conformance cases for the builtins the machine runs, in
+  `test/conformance`, with a runner and `scripts/conformance/refresh.py`; they
+  are under the Apache License 2.0, with their own `LICENSE` and `NOTICE`
