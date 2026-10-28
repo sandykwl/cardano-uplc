@@ -57,6 +57,37 @@ The test suite includes cases copied from the Plutus repository's conformance
 suite, which is under the Apache License 2.0. They are in `test/conformance`,
 with their `LICENSE` and `NOTICE`; the package itself is MIT.
 
+## Running the tests
+
+From the package root, since the conformance runner reads `test/conformance`
+relative to it:
+
+```bash
+cabal test all                      # the whole suite, 931 tests
+cabal test all -w ghc-9.6.7         # the other compiler CI uses
+cabal run -v0 test:tests -- -l      # list every test's name without running it
+```
+
+## Comparing with plutus-core
+
+The comparison with plutus-core lives in its own repository,
+[cardano-uplc-compare](https://github.com/sandykwl/cardano-uplc-compare),
+because it depends on plutus-core, which this package exists to avoid. It
+compares the flat codec, `Data` as CBOR and the `value` type, and reads
+cardano-uplc from a checkout beside it:
+
+```bash
+git clone -b cek-machine https://github.com/sandykwl/cardano-uplc.git
+git clone https://github.com/sandykwl/cardano-uplc-compare.git
+cd cardano-uplc-compare
+cabal update                    # the package index is pinned to 2026-09-24
+cabal run -w ghc-9.6.7 cardano-uplc-compare -- 1000         # 1000 cases from each random family
+cabal run -w ghc-9.6.7 cardano-uplc-compare -- corpus DIR   # every .flat file under DIR
+```
+
+The first build compiles plutus-core and about 150 other packages. The last
+line of a run is `RESULT: no disagreements` or `RESULT: disagreements found`.
+
 ## Acknowledgements
 
 The design follows Amaru's `amaru-uplc` crate, plutus-core and the Plutus
