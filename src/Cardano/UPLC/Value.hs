@@ -9,10 +9,9 @@ zero quantity or an empty currency instead of dropping it, since that would
 accept a second encoding of the same value.
 
 plutus-core's @Value@ also caches the sizes of its inner maps and the number
-of negative quantities. Those exist to cost the value builtins without
-walking the map; this package has no builtins that use values yet, and the
-caches follow from the map, so they can be added later without changing what
-a t'Value' means.
+of negative quantities. They let plutus-core cost the value builtins, and
+answer some of them, without walking the map. All of them follow from the
+map, so leaving them out changes nothing about what a t'Value' means.
 
 @since 0.1.0
 -}

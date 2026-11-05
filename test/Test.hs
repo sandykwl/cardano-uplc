@@ -1,11 +1,12 @@
-{- Tests for the flat codec.
+{- The test suite. The flat codec's tests are here. The other groups, from Data
+as CBOR to the conformance cases, are in the modules that main lists.
 
 Round trips check that the encoder and decoder agree with each other. The
 golden test checks that they agree with the reference, on a small program
 whose bytes plutus-core reads and writes back unchanged. The negative cases
 are copied byte for byte from amaru-uplc's conformance suite, and each checks
 the exact error and where it happened, not just that decoding failed. The
-last group pins down what this release doesn't support yet.
+last group covers types without values, and data constants.
 -}
 module Main (main) where
 
@@ -29,18 +30,29 @@ import Cardano.UPLC.Name (DeBruijn (DeBruijn), Name (Name), Unique (Unique))
 import Cardano.UPLC.Term (Program (Program), Term (..), Version (Version))
 import Cardano.UPLC.Test.Gen (Encodable (Encodable), Nested (Nested))
 import Cardano.UPLC.Ty (Ty (..))
+import Builtins.Bitwise (bitwiseTests)
+import Builtins.ByteString (byteStringTests)
+import Builtins.Integer (integerTests)
+import Conformance (conformanceTests)
 import DataCbor (dataCborTests)
+import Machine (machineTests)
 import ValueFlat (valueFlatTests)
 
 main :: IO ()
-main =
+main = do
+  conformance <- conformanceTests
   defaultMain . adjustOption (max (1_000 :: QuickCheckTests)) $
     testGroup
       "cardano-uplc"
       [ testGroup "Flat" [tagTables, roundTrips, annotations, golden, goldenShapes, goldenChunks, goldenSpec, negatives, padding, readingRules, gaps]
       , dataCborTests
       , valueFlatTests
+      , machineTests
       , names
+      , integerTests
+      , byteStringTests
+      , bitwiseTests
+      , conformance
       ]
 
 -- Position in the declaration is the wire tag, so a dropped or reordered
@@ -236,8 +248,9 @@ negatives =
         decodeProgram (BS.pack [0x01, 0x01, 0x00, 0x88, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x00, 0x21])
           @?= Left (WordOverflow 28)
     , -- var/free: index 1 with no enclosing lambda decodes, because scope
-      -- checking is a later pass. Upstream files it under evaluation
-      -- failure.
+      -- checking is a later pass. Upstream's conformance runner refuses it
+      -- when it turns the program back into names, and expects a decode
+      -- error.
       testCase "a free variable decodes" $
         decodeProgram (BS.pack [0x01, 0x00, 0x00, 0x00, 0x11])
           @?= Right (Program () (Version 1 0 0) (Var () (DeBruijn 1)))
@@ -258,9 +271,9 @@ padding =
     ]
 
 -- How numbers written with extra zero groups are read, matched to
--- plutus-core's decoders at 1.70.0.0. Indices and constr tags take at most
--- ten groups, as its Word64 reader does. Versions and integer constants are
--- unbounded naturals there, so any padding is accepted.
+-- plutus-core's decoders at 1.70.0.0. Indices and constr tags take at most ten
+-- groups, as plutus-core's Word64 reader does. Versions and integer
+-- constants are unbounded naturals there, so any padding is accepted.
 readingRules :: TestTree
 readingRules =
   testGroup

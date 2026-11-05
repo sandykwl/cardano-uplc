@@ -12,9 +12,10 @@ build, and anyone working on Plutarch has to learn `plutus-core`'s
 implementation choices as well as Plutarch's own.
 
 Amaru instead wrote its own UPLC implementation, a complete CEK machine
-designed for performance that does not require Nix. This package is that
-implementation in Haskell, ported from Amaru's `amaru-uplc` crate, and it
-depends on nothing from `plutus-core`, so it can be used independently.
+designed for performance that does not require Nix. This package is a UPLC
+implementation in Haskell, without Nix, built with reference to `amaru-uplc`,
+`plutus-core` and the Plutus Core specification. It depends on nothing from
+`plutus-core`, so it can be used independently.
 
 ## Where it stands
 
@@ -39,12 +40,56 @@ plutus-core does, and the flat codec uses it for `data` constants.
 nested maps as plutus-core's is, and the flat codec reads and writes `value`
 constants with plutus-core's refusals.
 
-The CEK machine, cost metering, the builtins and version gating follow in
-later releases, roughly in that order, since each one needs the ones before
-it.
+`Cardano.UPLC.Machine` is the CEK machine. It runs every term except
+`constr` and `case`, and of the builtins it runs the integer, bytestring and
+bitwise ones and `ifThenElse`, under any of plutus-core's five semantics
+variants. Anything else it refuses with `NotSupported`. The other builtins,
+`constr` and `case`, and version gating follow in later releases. It has no
+execution budget: costing is outside the package's scope.
 
 ## Correctness
 
-Semantics follow the Plutus specification rather than any single
-implementation of it, and correctness is to be measured against the official
-Plutus Conformance Test Suite.
+Where `plutus-core` and the Plutus Core specification differ, behaviour
+matches `plutus-core`, the implementation the network runs. The test suite
+runs the official conformance cases for everything the machine implements.
+
+The test suite includes cases copied from the Plutus repository's conformance
+suite, which is under the Apache License 2.0. They are in `test/conformance`,
+with their `LICENSE` and `NOTICE`; the package itself is MIT.
+
+## Running the tests
+
+From the package root, since the conformance runner reads `test/conformance`
+relative to it:
+
+```bash
+cabal test all                      # the whole suite, 931 tests
+cabal test all -w ghc-9.6.7         # the other compiler CI uses
+cabal run -v0 test:tests -- -l      # list every test's name without running it
+```
+
+## Comparing with plutus-core
+
+The comparison with plutus-core lives in its own repository,
+[cardano-uplc-compare](https://github.com/sandykwl/cardano-uplc-compare),
+because it depends on plutus-core, which this package exists to avoid. It
+compares the flat codec, `Data` as CBOR and the `value` type, and reads
+cardano-uplc from a checkout beside it:
+
+```bash
+git clone -b cek-machine https://github.com/sandykwl/cardano-uplc.git
+git clone https://github.com/sandykwl/cardano-uplc-compare.git
+cd cardano-uplc-compare
+cabal update                    # the package index is pinned to 2026-09-24
+cabal run -w ghc-9.6.7 cardano-uplc-compare -- 1000         # 1000 cases from each random family
+cabal run -w ghc-9.6.7 cardano-uplc-compare -- corpus DIR   # every .flat file under DIR
+```
+
+The first build compiles plutus-core and about 150 other packages. The last
+line of a run is `RESULT: no disagreements` or `RESULT: disagreements found`.
+
+## Acknowledgements
+
+The design follows Amaru's `amaru-uplc` crate, plutus-core and the Plutus
+Core specification. `amaru-uplc` and plutus-core are licensed under Apache
+2.0; see `NOTICE`.

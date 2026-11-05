@@ -4,8 +4,8 @@
 
 The golden bytes and the accepted and refused inputs are plutus-core's, printed
 by plutus-core 1.70.0.0's own flat encoder and decoder, never worked out by
-hand. The inputs are flat lists on their own, so each is put into a program by
-'inProgram'. The refusals check the exact rule and the bit where
+hand. The refused inputs are flat lists on their own, so each is put into a
+program by 'inProgram'. The refusals check the exact rule and the bit where
 the offending key or quantity starts.
 -}
 module ValueFlat (valueFlatTests) where
@@ -75,7 +75,7 @@ golden =
   where
     ff n = concat (replicate n "ff")
 
--- Inputs plutus-core's decoder accepts. The last is written with an extra zero
+-- Inputs the probe's decoder accepts. The last is written with an extra zero
 -- group, which plutus-core reads and then writes shorter.
 reading :: TestTree
 reading =
@@ -113,8 +113,8 @@ refusals =
         ]
     ]
 
--- The bytes printed for a value on their own are a flat list that starts with
--- its first cons bit and a filler. A program puts the same list after the type
+-- The probe prints a value on its own, a flat list that starts with its
+-- first cons bit and a filler. A program puts the same list after the type
 -- tags, which end a few bits into a byte, so after the first byte the two
 -- are the same bytes. This does not work for the empty list.
 inProgram :: String -> ByteString
