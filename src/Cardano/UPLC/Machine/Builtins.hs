@@ -12,6 +12,9 @@ builtin with no denotation yet is 'Unsupported'.
 -}
 module Cardano.UPLC.Machine.Builtins (
   SemanticsVariant (..),
+  Params (..),
+  SignatureChecks (..),
+  defaultParams,
   BuiltinError (..),
   forceCount,
   arity,
@@ -68,6 +71,62 @@ data SemanticsVariant
     , -- | @since 0.1.0
       Bounded
     )
+
+{- | Everything the machine is told about how to run builtins.
+
+@since 0.1.0
+-}
+data Params = Params
+  { -- | Which builtin semantics to run.
+    --
+    -- @since 0.1.0
+    semanticsVariant :: !SemanticsVariant
+  , -- | The signature verifiers, if the caller has any.
+    --
+    -- @since 0.1.0
+    signatureChecks :: !SignatureChecks
+  }
+
+{- | The three signature verifiers, each taking the key, the message and the
+signature.
+
+This package keeps the rules that need no library: the argument lengths, and
+in variants D and E the 65,536-byte bound on the Ed25519 and Schnorr message.
+Breaking one is an evaluation failure. A verifier only sees arguments that
+pass, and answers 'Just' the verdict, or 'Nothing' for input the library will
+not parse, which is a failure too.
+
+With no verifier, a builtin whose arguments pass stops evaluation with
+@NotSupported@.
+
+@since 0.1.0
+-}
+data SignatureChecks = SignatureChecks
+  { -- | @verifyEd25519Signature@.
+    --
+    -- @since 0.1.0
+    checkEd25519 :: !(Maybe (ByteString -> ByteString -> ByteString -> Maybe Bool))
+  , -- | @verifyEcdsaSecp256k1Signature@.
+    --
+    -- @since 0.1.0
+    checkEcdsa :: !(Maybe (ByteString -> ByteString -> ByteString -> Maybe Bool))
+  , -- | @verifySchnorrSecp256k1Signature@.
+    --
+    -- @since 0.1.0
+    checkSchnorr :: !(Maybe (ByteString -> ByteString -> ByteString -> Maybe Bool))
+  }
+
+{- | Variant E, the one the conformance suite runs, and no signature
+verifiers, so the three signature builtins are not supported.
+
+@since 0.1.0
+-}
+defaultParams :: Params
+defaultParams =
+  Params
+    { semanticsVariant = VariantE
+    , signatureChecks = SignatureChecks Nothing Nothing Nothing
+    }
 
 -- Forces, then arguments.
 shape :: DefaultFun -> (Int, Int)
@@ -186,8 +245,8 @@ The caller has counted them: there are 'arity' of them.
 
 @since 0.1.0
 -}
-runBuiltin :: SemanticsVariant -> DefaultFun -> [CekValue] -> Either BuiltinError CekValue
-runBuiltin var f args = case (f, args) of
+runBuiltin :: Params -> DefaultFun -> [CekValue] -> Either BuiltinError CekValue
+runBuiltin params f args = case (f, args) of
   (AddInteger, [x, y]) -> integerOp I.addInteger x y
   (SubtractInteger, [x, y]) -> integerOp I.subtractInteger x y
   (MultiplyInteger, [x, y]) -> integerOp I.multiplyInteger x y
@@ -282,13 +341,36 @@ runBuiltin var f args = case (f, args) of
   (FindFirstSetBit, [x]) -> do
     bytes <- boundedByteString x
     con CInteger (W.findFirstSetBit bytes)
+  (VerifyEd25519Signature, [k, m, s]) ->
+    signature (checkEd25519 checks) 32 Nothing k boundedByteString m s
+  (VerifyEcdsaSecp256k1Signature, [k, m, s]) ->
+    signature (checkEcdsa checks) 33 (Just 32) k byteString m s
+  (VerifySchnorrSecp256k1Signature, [k, m, s]) ->
+    signature (checkSchnorr checks) 32 Nothing k boundedByteString m s
   -- The branches are passed through unchecked and unchanged.
   (IfThenElse, [c, t, e]) -> do
     cond <- bool c
     Right (if cond then t else e)
   _ -> Left Unsupported
   where
+    var = semanticsVariant params
+    checks = signatureChecks params
+    -- D and E bound what builtins read, and what a shift or rotation takes.
     limited = bounded var
+
+    -- Arguments are unlifted first, then the lengths are checked, then the
+    -- verifier is asked. The message length is fixed only for ECDSA.
+    signature check keyLen msgLen k readMsg m s = do
+      key <- byteString k
+      msg <- readMsg m
+      sig <- byteString s
+      if BS.length key /= keyLen
+        || BS.length sig /= 64
+        || maybe False (/= BS.length msg) msgLen
+        then Left Failed
+        else case check of
+          Nothing -> Left Unsupported
+          Just verify -> maybe (Left Failed) (con CBool . Right) (verify key msg sig)
 
     integerOp op x y = do
       a <- boundedInteger x

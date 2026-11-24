@@ -17,7 +17,7 @@ import Test.Tasty.HUnit (Assertion, assertFailure, testCase, (@?=))
 import Test.Tasty.QuickCheck (testProperty)
 import Cardano.UPLC.Builtin (DefaultFun (..))
 import Cardano.UPLC.Constant (Constant (..))
-import Cardano.UPLC.Machine (EvalError (..), SemanticsVariant (..), evaluateWith)
+import Cardano.UPLC.Machine (EvalError (..), Params (..), SemanticsVariant (..), defaultParams, evaluateWith)
 import Cardano.UPLC.Name (DeBruijn)
 import Cardano.UPLC.Term (Term (..))
 import Cardano.UPLC.Ty (Ty (TyBool, TyInteger))
@@ -67,12 +67,12 @@ eVariants = [VariantD, VariantE]
 allVariants = cVariants ++ eVariants
 
 gives :: [SemanticsVariant] -> T -> T -> Assertion
-gives vs t expected = mapM_ (\v -> evaluateWith v t @?= Right expected) vs
+gives vs t expected = mapM_ (\v -> evaluateWith defaultParams {semanticsVariant = v} t @?= Right expected) vs
 
 fails :: [SemanticsVariant] -> T -> Assertion
 fails vs t = mapM_ check vs
   where
-    check v = case evaluateWith v t of
+    check v = case evaluateWith defaultParams {semanticsVariant = v} t of
       Left (BuiltinFailure cause) | cause == t -> pure ()
       other -> assertFailure (show v ++ ": expected a builtin failure, got " ++ show other)
 
@@ -142,7 +142,7 @@ bitRows =
         fails allVariants (call WriteBits [bs (hex "ff"), ints [-1], bool True])
     , testCase "writeBits takes a list of integers, not of booleans" $ do
         let t = call WriteBits [bs (hex "00"), Constant () (CList TyBool [CBool True]), bool True]
-        evaluateWith VariantE t @?= Left (BuiltinArgumentType t)
+        evaluateWith defaultParams t @?= Left (BuiltinArgumentType t)
     , testCase "writeBits with a repeated index" $
         gives allVariants (call WriteBits [bs (hex "00"), ints [3, 3], bool True]) (bs (hex "08"))
     ]
@@ -294,7 +294,7 @@ genPair = do
 
 -- Run a builtin in variant E and read the constant back.
 run :: DefaultFun -> [T] -> Maybe Constant
-run f args = case evaluateWith VariantE (call f args) of
+run f args = case evaluateWith defaultParams (call f args) of
   Right (Constant () c) -> Just c
   _ -> Nothing
 
@@ -364,7 +364,7 @@ models =
         forAll genBytes $ \a -> forAll (choose (-3, 8 * 12 + 3)) $ \i ->
           let inside = i >= 0 && i < 8 * toInteger (BS.length a)
               t = call ReadBit [bs a, int i]
-           in evaluateWith VariantE t
+           in evaluateWith defaultParams t
                 === if inside then Right (bool (testBit (toInt a) (fromInteger i))) else Left (BuiltinFailure t)
     , testProperty "findFirstSetBit is the trailing zero count, or -1" $
         forAll genBytes $ \a ->
@@ -377,7 +377,7 @@ models =
               valid = all (< 8 * toInteger n) is
               write acc i = if u then setBit acc (fromInteger i) else clearBit acc (fromInteger i)
               t = call WriteBits [bs a, ints is, bool u]
-           in evaluateWith VariantE t
+           in evaluateWith defaultParams t
                 === if valid then Right (bs (fromInt n (foldl' write (toInt a) is))) else Left (BuiltinFailure t)
     , testProperty "a written bit reads back" $
         forAll genBytes $ \a -> forAll (elements [False, True]) $ \u ->

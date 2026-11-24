@@ -63,7 +63,7 @@ From the package root, since the conformance runner reads `test/conformance`
 relative to it:
 
 ```bash
-cabal test all                      # the whole suite, 931 tests
+cabal test all                      # the whole suite, 947 tests
 cabal test all -w ghc-9.6.7         # the other compiler CI uses
 cabal run -v0 test:tests -- -l      # list every test's name without running it
 ```

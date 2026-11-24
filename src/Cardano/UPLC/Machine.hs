@@ -9,7 +9,8 @@ specification's.
 
 This release runs @var@, @lam@, @apply@, @delay@, @force@, constants, @error@
 and @builtin@, for the integer, bytestring and bitwise builtins and
-@ifThenElse@. @constr@ and @case@, and the builtins of later releases, are
+@ifThenElse@, and for the signature builtins when t'Params' carries their
+verifiers. @constr@ and @case@, and the builtins of later releases, are
 refused with 'NotSupported'. There is no execution budget: a term that never
 finishes keeps the machine running.
 
@@ -18,6 +19,9 @@ finishes keeps the machine running.
 module Cardano.UPLC.Machine (
   evaluate,
   evaluateWith,
+  Params (..),
+  SignatureChecks (..),
+  defaultParams,
   SemanticsVariant (..),
   EvalError (..),
 ) where
@@ -26,8 +30,11 @@ import Data.Word (Word64)
 import Cardano.UPLC.Builtin (DefaultFun)
 import Cardano.UPLC.Machine.Builtins (
   BuiltinError (..),
+  Params (..),
   SemanticsVariant (..),
+  SignatureChecks (..),
   arity,
+  defaultParams,
   forceCount,
   runBuiltin,
  )
@@ -107,74 +114,74 @@ data Frame
   | -- [V _]: the function is V; the argument is being computed.
     FrameAwaitArg !CekValue
 
-{- | Evaluate a term under the semantics of 'VariantE', the one the
-conformance suite runs. Annotations are dropped, so the result carries @()@.
-The result is the value the term reduces to, turned back into a term, with the
-variables its closures captured replaced by what they were bound to.
+{- | Evaluate a term under 'defaultParams': the semantics of 'VariantE', the
+one the conformance suite runs, and no signature verifiers. Annotations are
+dropped, so the result carries @()@. The result is the value the term reduces
+to, turned back into a term, with the variables its closures captured
+replaced by what they were bound to.
 
 @since 0.1.0
 -}
 evaluate :: Term DeBruijn ann -> Either EvalError (Term DeBruijn ())
-evaluate = evaluateWith VariantE
+evaluate = evaluateWith defaultParams
 
-{- | Evaluate a term under the given builtin semantics. Only builtins can tell
-the variants apart.
+{- | Evaluate a term under the given parameters. Only builtins read them.
 
 @since 0.1.0
 -}
-evaluateWith :: SemanticsVariant -> Term DeBruijn ann -> Either EvalError (Term DeBruijn ())
-evaluateWith var = compute var [] [] . fmap (const ())
+evaluateWith :: Params -> Term DeBruijn ann -> Either EvalError (Term DeBruijn ())
+evaluateWith params = compute params [] [] . fmap (const ())
 
 compute ::
-  SemanticsVariant -> [Frame] -> Env -> Term DeBruijn () -> Either EvalError (Term DeBruijn ())
-compute var stack env term = case term of
-  Var _ (DeBruijn i) -> maybe (Left (FreeVariable i)) (returnValue var stack) (lookupVar i env)
-  Constant _ c -> returnValue var stack (VCon c)
-  LamAbs _ _ body -> returnValue var stack (VLamAbs body env)
-  Delay _ body -> returnValue var stack (VDelay body env)
-  Force _ body -> compute var (FrameForce : stack) env body
-  Apply _ f x -> compute var (FrameAwaitFunTerm env x : stack) env f
-  Builtin _ f -> returnValue var stack (VBuiltin f 0 [])
+  Params -> [Frame] -> Env -> Term DeBruijn () -> Either EvalError (Term DeBruijn ())
+compute params stack env term = case term of
+  Var _ (DeBruijn i) -> maybe (Left (FreeVariable i)) (returnValue params stack) (lookupVar i env)
+  Constant _ c -> returnValue params stack (VCon c)
+  LamAbs _ _ body -> returnValue params stack (VLamAbs body env)
+  Delay _ body -> returnValue params stack (VDelay body env)
+  Force _ body -> compute params (FrameForce : stack) env body
+  Apply _ f x -> compute params (FrameAwaitFunTerm env x : stack) env f
+  Builtin _ f -> returnValue params stack (VBuiltin f 0 [])
   Error _ -> Left ErrorTerm
   t -> Left (NotSupported t)
 
 returnValue ::
-  SemanticsVariant -> [Frame] -> CekValue -> Either EvalError (Term DeBruijn ())
-returnValue var stack v = case stack of
+  Params -> [Frame] -> CekValue -> Either EvalError (Term DeBruijn ())
+returnValue params stack v = case stack of
   [] -> Right (discharge v)
   FrameForce : rest -> case v of
-    VDelay body env -> compute var rest env body
+    VDelay body env -> compute params rest env body
     VBuiltin f forces args
-      | forces < forceCount f -> builtinStep var rest f (forces + 1) args
+      | forces < forceCount f -> builtinStep params rest f (forces + 1) args
       | otherwise -> Left (BuiltinNeedsArgument (Force () (discharge v)))
     _ -> Left (NotDelayed (discharge v))
-  FrameAwaitFunTerm env x : rest -> compute var (FrameAwaitArg v : rest) env x
+  FrameAwaitFunTerm env x : rest -> compute params (FrameAwaitArg v : rest) env x
   FrameAwaitArg f : rest -> case f of
-    VLamAbs body env -> compute var rest (v : env) body
+    VLamAbs body env -> compute params rest (v : env) body
     VBuiltin g forces args
-      | forces == forceCount g -> builtinStep var rest g forces (v : args)
+      | forces == forceCount g -> builtinStep params rest g forces (v : args)
       | otherwise -> Left (BuiltinNeedsForce (Apply () (discharge f) (discharge v)))
     _ -> Left (NotAFunction (discharge f))
 
 -- A builtin has taken one more force or argument. If it now has them all it
 -- runs, and otherwise it is a value.
 builtinStep ::
-  SemanticsVariant ->
+  Params ->
   [Frame] ->
   DefaultFun ->
   Int ->
   [CekValue] ->
   Either EvalError (Term DeBruijn ())
-builtinStep var stack f forces args
+builtinStep params stack f forces args
   | forces == forceCount f && length args == arity f =
-      case runBuiltin var f (reverse args) of
+      case runBuiltin params f (reverse args) of
         -- Forced here, so a builtin does its work when it runs, not when
         -- something reads the result.
-        Right !result -> returnValue var stack result
+        Right !result -> returnValue params stack result
         Left ArgumentType -> Left (BuiltinArgumentType application)
         Left Failed -> Left (BuiltinFailure application)
         Left Unsupported -> Left (NotSupported application)
-  | otherwise = returnValue var stack partial
+  | otherwise = returnValue params stack partial
   where
     partial = VBuiltin f forces args
     application = discharge partial

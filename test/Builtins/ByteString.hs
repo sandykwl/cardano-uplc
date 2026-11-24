@@ -23,7 +23,7 @@ import Test.Tasty.HUnit (testCase, (@?=))
 import Test.Tasty.QuickCheck (testProperty)
 import Cardano.UPLC.Builtin (DefaultFun (..))
 import Cardano.UPLC.Constant (Constant (..))
-import Cardano.UPLC.Machine (EvalError (..), SemanticsVariant (..), evaluateWith)
+import Cardano.UPLC.Machine (EvalError (..), Params (..), SemanticsVariant (..), defaultParams, evaluateWith)
 import Cardano.UPLC.Name (DeBruijn)
 import Cardano.UPLC.Term (Term (..))
 
@@ -76,7 +76,7 @@ row name term ab c d e =
       (\(v, out) -> check v out)
       [(VariantA, ab), (VariantB, ab), (VariantC, c), (VariantD, d), (VariantE, e)]
   where
-    check v out = evaluateWith v term @?= expected out
+    check v out = evaluateWith defaultParams {semanticsVariant = v} term @?= expected out
     expected = \case
       Ok t -> Right t
       Fail -> Left (BuiltinFailure term)
@@ -245,7 +245,7 @@ integerToByteStringRows =
     , localOption (mkTimeout 2000000) $
         testCase "the largest input is not quadratic in its length" $
           mapM_
-            (\k -> evaluateWith VariantE (itb True 0 (maxInput - k)) @?= Right (bytes (replicate 8191 0xff ++ [0xff - fromInteger k])))
+            (\k -> evaluateWith defaultParams (itb True 0 (maxInput - k)) @?= Right (bytes (replicate 8191 0xff ++ [0xff - fromInteger k])))
             [0 .. 99]
     , same "a bytestring just inside the limit comes back" (call IntegerToByteString [bool True, int 8192, call ByteStringToInteger [bool True, ones 8192]]) (Ok (ones 8192))
     ]
@@ -330,7 +330,7 @@ properties =
     , testProperty "index agrees with the list, and fails outside it" $
         forAll ((,) <$> choose (-3, 12) <*> smallBytes) $ \(i, bs) ->
           let t = call IndexByteString [bytes bs, int i]
-           in evaluateWith VariantE t
+           in evaluateWith defaultParams t
                 === if i >= 0 && fromInteger i < length bs
                   then Right (int (toInteger (bs !! fromInteger i)))
                   else Left (BuiltinFailure t)
@@ -352,16 +352,16 @@ minimalWidth = go 0
     go acc m = go (acc + 1) (m `div` 256)
 
 evalBool :: T -> Maybe Bool
-evalBool t = case evaluateWith VariantE t of
+evalBool t = case evaluateWith defaultParams t of
   Right (Constant () (CBool b)) -> Just b
   _ -> Nothing
 
 evalInt :: T -> Maybe Integer
-evalInt t = case evaluateWith VariantE t of
+evalInt t = case evaluateWith defaultParams t of
   Right (Constant () (CInteger n)) -> Just n
   _ -> Nothing
 
 evalBytes :: T -> Maybe BS.ByteString
-evalBytes t = case evaluateWith VariantE t of
+evalBytes t = case evaluateWith defaultParams t of
   Right (Constant () (CByteString b)) -> Just b
   _ -> Nothing

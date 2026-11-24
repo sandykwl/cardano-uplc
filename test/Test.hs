@@ -33,6 +33,7 @@ import Cardano.UPLC.Ty (Ty (..))
 import Builtins.Bitwise (bitwiseTests)
 import Builtins.ByteString (byteStringTests)
 import Builtins.Integer (integerTests)
+import Builtins.Signature (signatureTests)
 import Conformance (conformanceTests)
 import DataCbor (dataCborTests)
 import Machine (machineTests)
@@ -51,6 +52,7 @@ main = do
       , names
       , integerTests
       , byteStringTests
+      , signatureTests
       , bitwiseTests
       , conformance
       ]
