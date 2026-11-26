@@ -22,9 +22,9 @@ implementation in Haskell, without Nix, built with reference to `amaru-uplc`,
 The library provides the syntax, under `Cardano.UPLC`: the term and program
 types, binders, builtins, constants and their types, and `Data`. It depends
 on `bytestring`, `containers`, `text`, `transformers`, `vector` and `cborg`,
-which bring `half`, `primitive` and `vector-stream`. `containers` ships with
-GHC. Nothing needs a system library, and the package builds with plain `cabal`
-against Hackage, without Nix.
+which bring `half`, `primitive` and `vector-stream`. The hashes come from
+`crypton`. `containers` ships with GHC. Nothing needs a system library, and the
+package builds with plain `cabal` against Hackage, without Nix.
 
 `Cardano.UPLC.Flat` is a first version of the flat codec, in both directions,
 and is still under review. Flat is the form a script takes on chain, and the
@@ -42,10 +42,10 @@ constants with plutus-core's refusals.
 
 `Cardano.UPLC.Machine` is the CEK machine. It runs every term except
 `constr` and `case`, and of the builtins it runs the integer, bytestring and
-bitwise ones and `ifThenElse`, under any of plutus-core's five semantics
-variants. Anything else it refuses with `NotSupported`. The other builtins,
-`constr` and `case`, and version gating follow in later releases. It has no
-execution budget: costing is outside the package's scope.
+bitwise ones, the six hashes and `ifThenElse`, under any of plutus-core's five
+semantics variants. Anything else it refuses with `NotSupported`. The other
+builtins, `constr` and `case`, and version gating follow in later releases. It
+has no execution budget: costing is outside the package's scope.
 
 ## Correctness
 
@@ -63,7 +63,7 @@ From the package root, since the conformance runner reads `test/conformance`
 relative to it:
 
 ```bash
-cabal test all                      # the whole suite, 947 tests
+cabal test all                      # the whole suite, 1,094 tests
 cabal test all -w ghc-9.6.7         # the other compiler CI uses
 cabal run -v0 test:tests -- -l      # list every test's name without running it
 ```

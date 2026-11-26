@@ -36,6 +36,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `ifThenElse`
 - The bytestring builtins, from `appendByteString` to `byteStringToInteger`,
   and the bitwise ones, from `andByteString` to `findFirstSetBit`
+- The hash builtins: `sha2_256`, `sha3_256`, `blake2b_256`, `keccak_256`,
+  `blake2b_224` and `ripemd_160`, on `crypton`
 - The signature builtins check their argument lengths and, in the newer
   variants, the message bound; the verdict comes from a verifier the caller
   passes in `SignatureChecks`

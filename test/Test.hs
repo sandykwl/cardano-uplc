@@ -32,6 +32,7 @@ import Cardano.UPLC.Test.Gen (Encodable (Encodable), Nested (Nested))
 import Cardano.UPLC.Ty (Ty (..))
 import Builtins.Bitwise (bitwiseTests)
 import Builtins.ByteString (byteStringTests)
+import Builtins.Hash (hashTests)
 import Builtins.Integer (integerTests)
 import Builtins.Signature (signatureTests)
 import Conformance (conformanceTests)
@@ -52,6 +53,7 @@ main = do
       , names
       , integerTests
       , byteStringTests
+      , hashTests
       , signatureTests
       , bitwiseTests
       , conformance

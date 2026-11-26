@@ -6,8 +6,9 @@ description:
   A Haskell implementation of Untyped Plutus Core, the language that every
   Cardano smart contract compiles to. This package provides the abstract
   syntax, the flat binary codec scripts are stored in on chain, and a CEK
-  machine that runs the core terms and the integer, bytestring and bitwise
-  builtins; the other builtins follow in later releases.
+  machine that runs the core terms and the integer, bytestring, bitwise and
+  hash builtins, and the signature checks when given a verifier; the other
+  builtins follow in later releases.
   Where the Plutus specification and plutus-core differ, the package follows
   plutus-core, which the network runs. The tests include the official
   conformance cases for what the machine implements.
@@ -35,6 +36,11 @@ tested-with:     GHC ==9.6.7 || ==9.8.4
 source-repository head
   type:     git
   location: https://github.com/sandykwl/cardano-uplc
+
+flag ram
+  description: Build against crypton 1.1 and ram, not crypton 1.0 and memory.
+  default:     True
+  manual:      False
 
 common lang
   default-language:   GHC2021
@@ -80,6 +86,7 @@ library
     Cardano.UPLC.Machine.Builtins.Bitwise
     Cardano.UPLC.Machine.Builtins.ByteString
     Cardano.UPLC.Machine.Builtins.Error
+    Cardano.UPLC.Machine.Builtins.Hash
     Cardano.UPLC.Machine.Builtins.Integer
     Cardano.UPLC.Machine.CekValue
 
@@ -91,6 +98,13 @@ library
       , transformers >=0.6    && <0.7
       , vector       >=0.13.2 && <0.14
 
+  -- crypton 1.1 moved its byte-array module from memory to ram. Both export
+  -- Data.ByteArray, so the source is the same and only the dependency differs.
+  if flag(ram)
+    build-depends: crypton >=1.1 && <1.2, ram >=0.20.1 && <0.23
+  else
+    build-depends: crypton >=1.0.6 && <1.1, memory >=0.18 && <0.19
+
 test-suite tests
   import:         lang
   type:           exitcode-stdio-1.0
@@ -99,6 +113,7 @@ test-suite tests
   other-modules:
     Builtins.Bitwise
     Builtins.ByteString
+    Builtins.Hash
     Builtins.Integer
     Builtins.Signature
     Cardano.UPLC.Test.Gen

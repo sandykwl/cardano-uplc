@@ -30,6 +30,7 @@ import Cardano.UPLC.Constant (Constant (..))
 import Cardano.UPLC.Machine.Builtins.Bitwise qualified as W
 import Cardano.UPLC.Machine.Builtins.ByteString qualified as B
 import Cardano.UPLC.Machine.Builtins.Error (BuiltinError (..))
+import Cardano.UPLC.Machine.Builtins.Hash qualified as H
 import Cardano.UPLC.Machine.Builtins.Integer qualified as I
 import Cardano.UPLC.Machine.CekValue (CekValue (..))
 import Cardano.UPLC.Ty (Ty (TyInteger))
@@ -341,6 +342,12 @@ runBuiltin params f args = case (f, args) of
   (FindFirstSetBit, [x]) -> do
     bytes <- boundedByteString x
     con CInteger (W.findFirstSetBit bytes)
+  (Sha2_256, [x]) -> hash H.sha2_256 x
+  (Sha3_256, [x]) -> hash H.sha3_256 x
+  (Blake2b_256, [x]) -> hash H.blake2b_256 x
+  (Keccak_256, [x]) -> hash H.keccak_256 x
+  (Blake2b_224, [x]) -> hash H.blake2b_224 x
+  (Ripemd_160, [x]) -> hash H.ripemd_160 x
   (VerifyEd25519Signature, [k, m, s]) ->
     signature (checkEd25519 checks) 32 Nothing k boundedByteString m s
   (VerifyEcdsaSecp256k1Signature, [k, m, s]) ->
@@ -357,6 +364,10 @@ runBuiltin params f args = case (f, args) of
     checks = signatureChecks params
     -- D and E bound what builtins read, and what a shift or rotation takes.
     limited = bounded var
+
+    hash digest x = do
+      bytes <- boundedByteString x
+      con CByteString (Right (digest bytes))
 
     -- Arguments are unlifted first, then the lengths are checked, then the
     -- verifier is asked. The message length is fixed only for ECDSA.

@@ -172,9 +172,9 @@ builtinRules =
     , testCase "a partial builtin in a closure has its arguments discharged" $
         evaluate (app (lam (lam (ite [bool True, var 2]))) (int 5)) @?= Right (lam (ite [bool True, int 5]))
     , testCase "a builtin this release does not run is refused when saturated" $
-        evaluate (call Sha2_256 [bytes 1]) @?= Left (NotSupported (call Sha2_256 [bytes 1]))
+        evaluate (call SerialiseData [bytes 1]) @?= Left (NotSupported (call SerialiseData [bytes 1]))
     , testCase "an unsupported builtin is a value until saturated" $
-        evaluate (call Sha2_256 []) @?= Right (builtin Sha2_256)
+        evaluate (call SerialiseData []) @?= Right (builtin SerialiseData)
     ]
 
 builtinErrors :: TestTree
