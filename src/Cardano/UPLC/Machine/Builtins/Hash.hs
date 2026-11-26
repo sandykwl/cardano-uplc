@@ -37,7 +37,7 @@ digest alg = BA.convert . hashWith alg
 sha2_256 :: ByteString -> ByteString
 sha2_256 = digest SHA256
 
-{- | SHA3-256, the FIPS 202 standard.
+{- | SHA3-256, from FIPS 202.
 
 @since 0.1.0
 -}

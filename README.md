@@ -21,9 +21,9 @@ implementation in Haskell, without Nix, built with reference to `amaru-uplc`,
 
 The library provides the syntax, under `Cardano.UPLC`: the term and program
 types, binders, builtins, constants and their types, and `Data`. It depends
-on `bytestring`, `containers`, `text`, `transformers`, `vector` and `cborg`,
-which bring `half`, `primitive` and `vector-stream`. The hashes come from
-`crypton`. `containers` ships with GHC. Nothing needs a system library, and the
+on `bytestring`, `containers`, `text`, `transformers`, `vector`, `cborg` and,
+for the hashes, `crypton` with `ram` (or `memory` with crypton 1.0).
+`containers` ships with GHC. Nothing needs a system library, and the
 package builds with plain `cabal` against Hackage, without Nix.
 
 `Cardano.UPLC.Flat` is a first version of the flat codec, in both directions,
@@ -43,9 +43,11 @@ constants with plutus-core's refusals.
 `Cardano.UPLC.Machine` is the CEK machine. It runs every term except
 `constr` and `case`, and of the builtins it runs the integer, bytestring and
 bitwise ones, the six hashes and `ifThenElse`, under any of plutus-core's five
-semantics variants. Anything else it refuses with `NotSupported`. The other
-builtins, `constr` and `case`, and version gating follow in later releases. It
-has no execution budget: costing is outside the package's scope.
+semantics variants. It runs the signature checks too when the caller passes
+verifiers, as the next paragraph says. Anything else it refuses with
+`NotSupported`. The other builtins, `constr` and `case`, and version gating
+follow in later releases. It has no execution budget: costing is outside the
+package's scope.
 
 The three signature builtins need libsodium and libsecp256k1, which this
 package does not. Their length rules are in the core, and the verdicts come
