@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 """Copy the conformance cases this package can run into test/conformance.
 
-Usage: refresh.py <plutus checkout> <builtin name>...
+Usage: refresh.py [--dest <directory>] [--require <builtin name>]...
+                  <plutus checkout> <builtin name>...
 
 A case is copied when its .uplc uses only the builtins named on the command
 line and no constr or case, and it has a .flat. Only the .flat and the
 .flat.expected come across, at the same path below test-cases/uplc.
+
+--dest names another directory to fill, for a second package. --require, which
+may be repeated, keeps only the cases that use at least one of the builtins it
+names, so that a package copies the cases of its own builtins and not every
+case that happens to qualify.
 """
+import argparse
 import datetime
 import os
 import re
@@ -26,10 +33,11 @@ def strip_comments(s):
     return re.sub(r"--[^\n]*", " ", s)
 
 
-def runnable(uplc, allowed):
+def runnable(uplc, allowed, required):
     with open(uplc, encoding="utf-8") as f:
         src = strip_comments(f.read())
-    return not CONSTR_CASE.search(src) and set(BUILTIN.findall(src)) <= allowed
+    used = set(BUILTIN.findall(src))
+    return not CONSTR_CASE.search(src) and used <= allowed and (not required or used & required)
 
 
 def vcs(checkout, *args):
@@ -37,16 +45,21 @@ def vcs(checkout, *args):
 
 
 def main():
-    if len(sys.argv) < 2:
-        sys.exit(__doc__)
-    checkout, allowed = sys.argv[1], set(sys.argv[2:])
+    parser = argparse.ArgumentParser(usage=__doc__, add_help=False)
+    parser.add_argument("--dest", default=DEST)
+    parser.add_argument("--require", action="append", default=[])
+    parser.add_argument("checkout")
+    parser.add_argument("builtins", nargs="*")
+    args = parser.parse_args()
+    checkout, allowed, dest = args.checkout, set(args.builtins), os.path.abspath(args.dest)
+    required = set(args.require)
     conf = os.path.join(checkout, "plutus-conformance")
     root = os.path.join(conf, "test-cases", "uplc")
     # Checked before anything is deleted, so a wrong path leaves the cases alone.
     if not os.path.isdir(root):
         sys.exit(f"{root} is not a directory; is {checkout} a plutus checkout?")
 
-    shutil.rmtree(DEST, ignore_errors=True)
+    shutil.rmtree(dest, ignore_errors=True)
     copied = 0
     no_flat = 0
     for d, subdirs, files in os.walk(root):
@@ -57,26 +70,37 @@ def main():
             stem = f[: -len(".uplc")]
             flat = os.path.join(d, stem + ".flat")
             expected = flat + ".expected"
-            if not runnable(os.path.join(d, f), allowed):
+            if not runnable(os.path.join(d, f), allowed, required):
                 continue
             if not (os.path.exists(flat) and os.path.exists(expected)):
                 no_flat += 1
                 continue
-            out = os.path.join(DEST, os.path.relpath(d, root))
+            out = os.path.join(dest, os.path.relpath(d, root))
             os.makedirs(out, exist_ok=True)
             shutil.copyfile(flat, os.path.join(out, stem + ".flat"))
             shutil.copyfile(expected, os.path.join(out, stem + ".flat.expected"))
             copied += 1
 
     for name in ("LICENSE", "NOTICE"):
-        shutil.copyfile(os.path.join(conf, name), os.path.join(DEST, name))
+        shutil.copyfile(os.path.join(conf, name), os.path.join(dest, name))
 
     commit = vcs(checkout, "rev-parse", "HEAD")
     commit_date = vcs(checkout, "log", "-1", "--format=%cs")
-    with open(os.path.join(DEST, "NOTICE"), encoding="utf-8") as f:
+    with open(os.path.join(dest, "NOTICE"), encoding="utf-8") as f:
         notice = f.read().strip()
     builtins = ", ".join(f"`{b}`" for b in sorted(allowed)) or "none"
-    with open(os.path.join(DEST, "SOURCE.md"), "w", encoding="utf-8", newline="\n") as f:
+    named = ", ".join(f"`{b}`" for b in sorted(required))
+    tail = ", and that have a `.flat`."
+    if required:
+        tail = f", and that use at least one of {named} and have a `.flat`."
+    command = "scripts/conformance/refresh.py"
+    if os.path.abspath(args.dest) != DEST:
+        root_dir = os.path.dirname(os.path.dirname(HERE))
+        command += f" --dest {os.path.relpath(dest, root_dir)}"
+    command += "".join(f" --require {b}" for b in sorted(required))
+    left_out = (f"{no_flat} otherwise qualifying cases were" if no_flat
+                else "no otherwise qualifying case was")
+    with open(os.path.join(dest, "SOURCE.md"), "w", encoding="utf-8", newline="\n") as f:
         f.write(f"""# Conformance cases
 
 These files come from `plutus-conformance/test-cases/uplc` in
@@ -86,8 +110,8 @@ Each case keeps its path below `test-cases/uplc`, and only its `.flat` input
 and `.flat.expected` result are here. `test/Conformance.hs` runs them.
 
 {copied} cases are here: those whose `.uplc` uses no builtin outside
-{builtins}, and no `constr` or `case`, and that have a `.flat`. The text-parser
-cases have none; {no_flat} otherwise qualifying cases were left out for that.
+{builtins}, and no `constr` or `case`{tail} The text-parser
+cases have none; {left_out} left out for that.
 
 ## Licence
 
@@ -101,7 +125,7 @@ one. The upstream `NOTICE` reads:
 ## Refreshing
 
 ```
-scripts/conformance/refresh.py <plutus checkout> <builtin name>...
+{command} <plutus checkout> <builtin name>...
 ```
 
 Name every builtin the machine implements. The script empties this
