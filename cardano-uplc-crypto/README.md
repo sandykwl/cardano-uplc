@@ -45,5 +45,6 @@ project builds the core alone.
 `.github/workflows/cardano-uplc-crypto.yml` builds and tests on `ubuntu-latest`
 and `macos-latest` with GHC 9.6.7 and 9.8.4, taking libsodium from the
 distribution and building libsecp256k1 v0.3.2 from source into `~/.local`,
-which is cached. `windows-latest` runs with `continue-on-error`, on the MSYS2
-packages. A separate job checks Haddock coverage, `@since` and `cabal check`.
+which is cached. Windows is not tested: MSYS2 packages libsodium but not
+libsecp256k1. A separate job checks Haddock coverage, `@since` and
+`cabal check`.
