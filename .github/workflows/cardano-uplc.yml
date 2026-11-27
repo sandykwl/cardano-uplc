@@ -9,8 +9,9 @@ name: cardano-uplc
 jobs:
   # The GHC versions are read from `tested-with`, so they are declared once, in
   # the cabal file. The runners are listed here: every Tier 1 GHC platform.
-  # x86_64 darwin is macos-15-intel: the macos-13 image has been retired, and
-  # jobs asking for it queue until the 24-hour timeout kills them.
+  # x86_64 darwin is macos-15-intel and aarch64 darwin is macos-latest. The
+  # macos-13 and macos-14 images have been retired: a job asking for one never
+  # runs.
   generate-matrix:
     runs-on: ubuntu-latest
     outputs:
@@ -22,7 +23,7 @@ jobs:
         with:
           cabal-file: cardano-uplc.cabal
           ubuntu-version: "latest, 24.04-arm"
-          macos-version: "15-intel, 14"
+          macos-version: "15-intel, latest"
           windows-version: "latest"
           version: 0.1.10.0
 

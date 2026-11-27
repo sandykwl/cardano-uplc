@@ -1,0 +1,80 @@
+cabal-version:   3.0
+name:            cardano-uplc-crypto
+version:         0.1.0
+synopsis:        Signature verification for cardano-uplc, through libsodium and libsecp256k1
+description:
+  The three signature checks of Plutus Core, @verifyEd25519Signature@,
+  @verifyEcdsaSecp256k1Signature@ and @verifySchnorrSecp256k1Signature@, for
+  the machine in @cardano-uplc@. The verdicts come from the C libraries the
+  Cardano node runs, libsodium and libsecp256k1, so the package needs both
+  installed where @pkg-config@ can find them.
+
+license:         MIT
+license-file:    LICENSE
+author:          sandykwl <lambdac.dev01@gmail.com>
+maintainer:      sandykwl <lambdac.dev01@gmail.com>
+category:        Cryptography
+extra-doc-files:
+  CHANGELOG.md
+  README.md
+
+extra-source-files:
+  test/conformance/**/*.flat
+  test/conformance/**/*.flat.expected
+  test/conformance/LICENSE
+  test/conformance/NOTICE
+  test/conformance/SOURCE.md
+  test/ed25519-edge-vectors.tsv
+
+tested-with:     GHC ==9.6.7 || ==9.8.4
+
+source-repository head
+  type:     git
+  location: https://github.com/sandykwl/cardano-uplc
+
+common lang
+  default-language:   GHC2021
+  default-extensions:
+    DerivingStrategies
+    LambdaCase
+    NoDeriveDataTypeable
+    NoMonomorphismRestriction
+    NoPostfixOperators
+    NoStarIsType
+
+  build-depends:      base >=4.18 && <4.20
+  ghc-options:
+    -Wall -Wcompat -Wredundant-constraints -Wincomplete-uni-patterns
+    -Wincomplete-record-updates -Wmissing-export-lists
+    -Wmissing-deriving-strategies -Wpartial-fields -Wunused-packages
+
+library
+  import:             lang
+  hs-source-dirs:     src
+  exposed-modules:    Cardano.UPLC.Crypto
+  build-depends:
+    , bytestring     >=0.11 && <0.13
+    , cardano-uplc   ^>=0.1
+
+  pkgconfig-depends:
+    libsecp256k1 >=0.3.2
+    , libsodium    >=1.0.18
+
+test-suite tests
+  import:         lang
+  type:           exitcode-stdio-1.0
+  main-is:        Test.hs
+  hs-source-dirs: test
+  other-modules:
+    Cells
+    Conformance
+    Edge
+    Hex
+  build-depends:
+    , bytestring
+    , cardano-uplc
+    , cardano-uplc-crypto
+    , directory
+    , filepath
+    , tasty               >=1.5  && <1.6
+    , tasty-hunit         >=0.10 && <0.11

@@ -1,2 +1,5 @@
 # The conformance cases are copied byte for byte from upstream.
 test/conformance/** -text
+cardano-uplc-crypto/test/conformance/** -text
+# The edge-vector table must not gain carriage returns on Windows.
+*.tsv text eol=lf

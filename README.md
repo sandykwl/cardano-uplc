@@ -21,10 +21,10 @@ implementation in Haskell, without Nix, built with reference to `amaru-uplc`,
 
 The library provides the syntax, under `Cardano.UPLC`: the term and program
 types, binders, builtins, constants and their types, and `Data`. It depends
-on `bytestring`, `containers`, `text`, `transformers`, `vector` and `cborg`,
-which bring `half`, `primitive` and `vector-stream`. `containers` ships with
-GHC. Nothing needs a system library, and the package builds with plain `cabal`
-against Hackage, without Nix.
+on `bytestring`, `containers`, `text`, `transformers`, `vector`, `cborg` and,
+for the hashes, `crypton` with `ram` (or `memory` with crypton 1.0).
+`containers` ships with GHC. Nothing needs a system library, and the
+package builds with plain `cabal` against Hackage, without Nix.
 
 `Cardano.UPLC.Flat` is a first version of the flat codec, in both directions,
 and is still under review. Flat is the form a script takes on chain, and the
@@ -42,20 +42,29 @@ constants with plutus-core's refusals.
 
 `Cardano.UPLC.Machine` is the CEK machine. It runs every term except
 `constr` and `case`, and of the builtins it runs the integer, bytestring and
-bitwise ones and `ifThenElse`, under any of plutus-core's five semantics
-variants. Anything else it refuses with `NotSupported`. The other builtins,
-`constr` and `case`, and version gating follow in later releases. It has no
-execution budget: costing is outside the package's scope.
+bitwise ones, the six hashes and `ifThenElse`, under any of plutus-core's five
+semantics variants. It runs the signature checks too when the caller passes
+verifiers, as the next paragraph says. Anything else it refuses with
+`NotSupported`. The other builtins, `constr` and `case`, and version gating
+follow in later releases. It has no execution budget: costing is outside the
+package's scope.
+
+The three signature builtins need libsodium and libsecp256k1, which this
+package does not. Their length rules are in the core, and the verdicts come
+from a verifier passed in `Params`. `cardano-uplc-crypto`, a second package in
+`cardano-uplc-crypto/`, binds the two C libraries and provides one; see its
+README.
 
 ## Correctness
 
 Where `plutus-core` and the Plutus Core specification differ, behaviour
-matches `plutus-core`, the implementation the network runs. The test suite
-runs the official conformance cases for everything the machine implements.
+matches `plutus-core`, the implementation the network runs. The test suites
+run the official conformance cases for everything the machine implements.
 
-The test suite includes cases copied from the Plutus repository's conformance
-suite, which is under the Apache License 2.0. They are in `test/conformance`,
-with their `LICENSE` and `NOTICE`; the package itself is MIT.
+The test suites include cases copied from the Plutus repository's conformance
+suite, which is under the Apache License 2.0. They are in `test/conformance`
+and `cardano-uplc-crypto/test/conformance`, each with its `LICENSE` and
+`NOTICE`; the package itself is MIT.
 
 ## Running the tests
 
@@ -63,21 +72,26 @@ From the package root, since the conformance runner reads `test/conformance`
 relative to it:
 
 ```bash
-cabal test all                      # the whole suite, 931 tests
+cabal test all                      # the whole suite, 1,094 tests
 cabal test all -w ghc-9.6.7         # the other compiler CI uses
 cabal run -v0 test:tests -- -l      # list every test's name without running it
 ```
+
+The signature checks have their own suite, 440 tests, run from
+`cardano-uplc-crypto/` with the two C libraries installed; its README says how.
 
 ## Comparing with plutus-core
 
 The comparison with plutus-core lives in its own repository,
 [cardano-uplc-compare](https://github.com/sandykwl/cardano-uplc-compare),
 because it depends on plutus-core, which this package exists to avoid. It
-compares the flat codec, `Data` as CBOR and the `value` type, and reads
-cardano-uplc from a checkout beside it:
+compares the flat codec, `Data` as CBOR, the `value` type, the machine and the
+builtins, including the hashes and signature checks, and reads cardano-uplc
+from a checkout beside it. It needs libsodium, libsecp256k1 and blst; its
+README says how.
 
 ```bash
-git clone -b cek-machine https://github.com/sandykwl/cardano-uplc.git
+git clone https://github.com/sandykwl/cardano-uplc.git
 git clone https://github.com/sandykwl/cardano-uplc-compare.git
 cd cardano-uplc-compare
 cabal update                    # the package index is pinned to 2026-09-24

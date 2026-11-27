@@ -11,7 +11,7 @@ import Test.Tasty.HUnit (Assertion, testCase, (@?=))
 import Test.Tasty.QuickCheck (Gen, NonNegative (..), NonPositive (..), Positive (..), arbitrary, choose, forAll, frequency, suchThat, testProperty, (=/=), (===), (==>))
 import Cardano.UPLC.Builtin (DefaultFun (..))
 import Cardano.UPLC.Constant (Constant (..))
-import Cardano.UPLC.Machine (EvalError (..), SemanticsVariant (..), evaluate, evaluateWith)
+import Cardano.UPLC.Machine (EvalError (..), Params (..), SemanticsVariant (..), defaultParams, evaluate, evaluateWith)
 import Cardano.UPLC.Name (DeBruijn (DeBruijn))
 import Cardano.UPLC.Term (Term (..))
 import Cardano.UPLC.Value (pack)
@@ -42,7 +42,7 @@ newVariants = [VariantD, VariantE]
 
 -- The call gives this result in the given variants.
 givesIn :: [SemanticsVariant] -> DefaultFun -> [Integer] -> T -> Assertion
-givesIn vs f args r = mapM_ (\v -> evaluateWith v (call f (map int args)) @?= Right r) vs
+givesIn vs f args r = mapM_ (\v -> evaluateWith defaultParams {semanticsVariant = v} (call f (map int args)) @?= Right r) vs
 
 -- The call gives this integer in every variant.
 gives :: DefaultFun -> [Integer] -> Integer -> Assertion
@@ -54,7 +54,7 @@ givesBool f args r = givesIn allVariants f args (bool r)
 -- The call fails in the given variants.
 failsIn :: [SemanticsVariant] -> DefaultFun -> [Integer] -> Assertion
 failsIn vs f args =
-  mapM_ (\v -> evaluateWith v t @?= Left (BuiltinFailure t)) vs
+  mapM_ (\v -> evaluateWith defaultParams {semanticsVariant = v} t @?= Left (BuiltinFailure t)) vs
   where
     t = call f (map int args)
 
@@ -271,7 +271,7 @@ bounds =
     , testCase "equalsInteger takes N in every variant" $ givesBool EqualsInteger [bound, bound] True
     , testCase "an unsaturated call does not look at its argument" $
         mapM_
-          (\v -> evaluateWith v (call AddInteger [int bound]) @?= Right (call AddInteger [int bound]))
+          (\v -> evaluateWith defaultParams {semanticsVariant = v} (call AddInteger [int bound]) @?= Right (call AddInteger [int bound]))
           allVariants
     ]
 

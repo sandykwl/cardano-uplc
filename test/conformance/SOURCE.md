@@ -6,8 +6,8 @@ https://github.com/IntersectMBO/plutus, at commit `02f74fb600737321c55600b0d2ead
 Each case keeps its path below `test-cases/uplc`, and only its `.flat` input
 and `.flat.expected` result are here. `test/Conformance.hs` runs them.
 
-450 cases are here: those whose `.uplc` uses no builtin outside
-`addInteger`, `andByteString`, `appendByteString`, `byteStringToInteger`, `complementByteString`, `consByteString`, `countSetBits`, `divideInteger`, `equalsByteString`, `equalsInteger`, `expModInteger`, `findFirstSetBit`, `ifThenElse`, `indexByteString`, `integerToByteString`, `lengthOfByteString`, `lessThanByteString`, `lessThanEqualsByteString`, `lessThanEqualsInteger`, `lessThanInteger`, `modInteger`, `multiplyInteger`, `orByteString`, `quotientInteger`, `readBit`, `remainderInteger`, `replicateByte`, `rotateByteString`, `shiftByteString`, `sliceByteString`, `subtractInteger`, `writeBits`, `xorByteString`, and no `constr` or `case`, and that have a `.flat`. The text-parser
+465 cases are here: those whose `.uplc` uses no builtin outside
+`addInteger`, `andByteString`, `appendByteString`, `blake2b_224`, `blake2b_256`, `byteStringToInteger`, `complementByteString`, `consByteString`, `countSetBits`, `divideInteger`, `equalsByteString`, `equalsInteger`, `expModInteger`, `findFirstSetBit`, `ifThenElse`, `indexByteString`, `integerToByteString`, `keccak_256`, `lengthOfByteString`, `lessThanByteString`, `lessThanEqualsByteString`, `lessThanEqualsInteger`, `lessThanInteger`, `modInteger`, `multiplyInteger`, `orByteString`, `quotientInteger`, `readBit`, `remainderInteger`, `replicateByte`, `ripemd_160`, `rotateByteString`, `sha2_256`, `sha3_256`, `shiftByteString`, `sliceByteString`, `subtractInteger`, `writeBits`, `xorByteString`, and no `constr` or `case`, and that have a `.flat`. The text-parser
 cases have none; 102 otherwise qualifying cases were left out for that.
 
 ## Licence

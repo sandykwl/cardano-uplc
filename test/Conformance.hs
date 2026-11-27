@@ -17,7 +17,7 @@ import System.FilePath (dropExtension, makeRelative, (</>))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertFailure, testCase, (@?=))
 import Cardano.UPLC.Flat (decodeProgram)
-import Cardano.UPLC.Machine (EvalError (..), SemanticsVariant (..), evaluateWith)
+import Cardano.UPLC.Machine (EvalError (..), defaultParams, evaluateWith)
 import Cardano.UPLC.Name (DeBruijn (..))
 import Cardano.UPLC.Term (Program (..), Term (..))
 
@@ -54,7 +54,7 @@ runCase name = testCase name $ do
     (Left e, _) -> assertFailure ("input does not decode: " <> e)
     (Right _, "parse/decode error") -> assertFailure "input decoded, but the case expects a decode error"
     (Right p, "evaluation failure") ->
-      case evaluateWith VariantE (programTerm p) of
+      case evaluateWith defaultParams (programTerm p) of
         Left (NotSupported t) -> assertFailure ("reached something not supported yet: " <> show t)
         Left _ -> pure ()
         Right t -> assertFailure ("expected a failure, got " <> show t)
@@ -62,7 +62,7 @@ runCase name = testCase name $ do
       case decodeProgram expected of
         Left e -> assertFailure ("expected result does not decode: " <> show e)
         Right want ->
-          (programVersion p, evaluateWith VariantE (programTerm p))
+          (programVersion p, evaluateWith defaultParams (programTerm p))
             @?= (programVersion want, Right (programTerm want))
 
 -- The conformance runner turns the program back into names before it runs it,

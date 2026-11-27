@@ -29,12 +29,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `case`
 - `Cardano.UPLC.Flat`, the flat codec, including `data` constants; the
   encoder cannot fail
-- `SemanticsVariant` and `evaluateWith`, to run the builtins under any of the
-  five semantics variants; `evaluate` runs the latest
+- `Params` and `evaluateWith`, to run the builtins under any of the five
+  semantics variants and with signature verifiers; `evaluate` runs the latest
+  variant with no verifiers
 - The integer builtins, from `addInteger` to `expModInteger`, and
   `ifThenElse`
 - The bytestring builtins, from `appendByteString` to `byteStringToInteger`,
   and the bitwise ones, from `andByteString` to `findFirstSetBit`
+- The hash builtins: `sha2_256`, `sha3_256`, `blake2b_256`, `keccak_256`,
+  `blake2b_224` and `ripemd_160`, on `crypton`
+- The signature builtins check their argument lengths and, in the newer
+  variants, the message bound; the verdict comes from a verifier the caller
+  passes in `SignatureChecks`
 - Plutus conformance cases for the builtins the machine runs, in
   `test/conformance`, with a runner and `scripts/conformance/refresh.py`; they
   are under the Apache License 2.0, with their own `LICENSE` and `NOTICE`
+
+### Changed
+
+- `evaluateWith` takes a `Params` record, where it took a `SemanticsVariant`,
+  so that it can also carry the signature verifiers. Code that passed a
+  variant `v` passes `defaultParams { semanticsVariant = v }`; `evaluate` is
+  unchanged

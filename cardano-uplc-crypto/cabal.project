@@ -1,0 +1,9 @@
+-- Kept apart from the root project so that building the core never asks
+-- for libsodium or libsecp256k1. Run cabal from this directory.
+packages: . ..
+
+package cardano-uplc
+  ghc-options: -Werror
+
+package cardano-uplc-crypto
+  ghc-options: -Werror
